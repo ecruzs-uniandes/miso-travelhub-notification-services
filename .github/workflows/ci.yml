@@ -40,7 +40,7 @@ jobs:
         run: pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=70
         env:
           ENV: test
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           KAFKA_CONSUMER_ENABLED: "false"
           INTERNAL_NOTIFY_TOKEN: test-token
           SENDGRID_API_KEY: SG.test
