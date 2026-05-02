@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Conflicto de Sincronización PMS</title></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #c05621;">Conflicto de Sincronización PMS</h1>
+  <p>Se detectó un conflicto durante la sincronización del PMS para el hotel <strong>{{ payload.hotel_id }}</strong>.</p>
+  {% if payload.conflict_type %}<p><strong>Tipo de conflicto:</strong> {{ payload.conflict_type }}</p>{% endif %}
+  {% if payload.description %}<p><strong>Descripción:</strong> {{ payload.description }}</p>{% endif %}
+  <p>Revisa los detalles en tu panel de administración.</p>
+  <p><a href="{{ links.app_url }}/admin/pms" style="background: #c05621; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver en panel</a></p>
+</body>
+</html>

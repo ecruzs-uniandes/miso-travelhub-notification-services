@@ -1,0 +1,8 @@
+¡Hola {{ user.full_name }}!
+
+Hubo un problema al procesar tu pago.
+{% if payload.reason %}Motivo: {{ payload.reason }}{% endif %}
+
+Por favor intenta nuevamente: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+
+¿Necesitas ayuda? {{ links.support_email }}

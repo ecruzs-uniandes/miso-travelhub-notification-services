@@ -1,0 +1,8 @@
+Error de Sincronización PMS
+
+Hotel ID: {{ payload.hotel_id }}
+{% if payload.error %}Error: {{ payload.error }}{% endif %}
+
+Ir al panel: {{ links.app_url }}/admin/pms
+
+¿Necesitas ayuda? {{ links.support_email }}

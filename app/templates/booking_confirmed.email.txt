@@ -1,0 +1,11 @@
+¡Hola {{ user.full_name }}!
+
+Tu reserva en {{ payload.hotel_name }} está confirmada.
+
+Check-in: {{ payload.check_in }}
+Check-out: {{ payload.check_out }}
+Total: {{ payload.total }} {{ payload.currency }}
+
+Ver detalles: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+
+¿Necesitas ayuda? {{ links.support_email }}

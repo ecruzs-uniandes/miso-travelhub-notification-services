@@ -1,0 +1,16 @@
+steps:
+  - name: "python:3.11-slim"
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        pip install -r requirements.txt &&
+        alembic upgrade head
+    env:
+      - "DATABASE_URL=${_DATABASE_URL}"
+
+substitutions:
+  _DATABASE_URL: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY

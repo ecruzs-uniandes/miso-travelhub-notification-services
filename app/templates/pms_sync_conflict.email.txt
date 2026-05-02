@@ -1,0 +1,7 @@
+Conflicto de Sincronización PMS
+
+Hotel ID: {{ payload.hotel_id }}
+{% if payload.conflict_type %}Tipo: {{ payload.conflict_type }}{% endif %}
+{% if payload.description %}Descripción: {{ payload.description }}{% endif %}
+
+Ver en panel: {{ links.app_url }}/admin/pms

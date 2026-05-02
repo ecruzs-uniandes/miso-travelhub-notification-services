@@ -1,0 +1,8 @@
+¡Hola {{ user.full_name }}!
+
+Tu reserva en {{ payload.hotel_name }} ha sido cancelada.
+{% if payload.reason %}Motivo: {{ payload.reason }}{% endif %}
+
+Ver mis reservas: {{ links.app_url }}/bookings
+
+¿Necesitas ayuda? {{ links.support_email }}

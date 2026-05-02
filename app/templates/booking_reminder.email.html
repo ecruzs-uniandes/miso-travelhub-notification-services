@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Recordatorio de Reserva</title></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #2c5282;">¡Hola {{ user.full_name }}!</h1>
+  <p>Te recordamos que tienes una reserva en <strong>{{ payload.hotel_name }}</strong> en <strong>{{ payload.days_until }} días</strong>.</p>
+  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Check-in:</strong></td><td>{{ payload.check_in }}</td></tr>
+    <tr><td style="padding: 8px;"><strong>Check-out:</strong></td><td>{{ payload.check_out }}</td></tr>
+  </table>
+  <p><a href="{{ links.app_url }}/bookings/{{ payload.booking_id }}" style="background: #2c5282; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver detalles</a></p>
+</body>
+</html>

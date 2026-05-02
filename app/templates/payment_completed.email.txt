@@ -1,0 +1,9 @@
+¡Hola {{ user.full_name }}!
+
+Tu pago ha sido procesado exitosamente.
+
+Monto: {{ payload.amount }} {{ payload.currency }}
+Proveedor: {{ payload.provider }}
+ID Pago: {{ payload.payment_id }}
+
+Ver reserva: {{ links.app_url }}/bookings/{{ payload.booking_id }}

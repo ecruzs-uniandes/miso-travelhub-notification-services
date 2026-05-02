@@ -1,0 +1,1 @@
+{"title": "Reserva confirmada", "body": "Tu reserva en {{ payload.hotel_name }} está lista.", "data": {"deep_link": "/bookings/{{ payload.booking_id }}"}}

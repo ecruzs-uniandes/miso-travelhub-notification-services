@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Reserva Cancelada</title></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #c53030;">¡Hola {{ user.full_name }}!</h1>
+  <p>Tu reserva en <strong>{{ payload.hotel_name }}</strong> ha sido cancelada.</p>
+  {% if payload.reason %}<p><strong>Motivo:</strong> {{ payload.reason }}</p>{% endif %}
+  <p>Si tienes preguntas, contáctanos en <a href="mailto:{{ links.support_email }}">{{ links.support_email }}</a></p>
+  <p><a href="{{ links.app_url }}/bookings" style="background: #c53030; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver mis reservas</a></p>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Pago Completado</title></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #276749;">¡Hola {{ user.full_name }}!</h1>
+  <p>Tu pago ha sido procesado exitosamente.</p>
+  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Monto:</strong></td><td>{{ payload.amount }} {{ payload.currency }}</td></tr>
+    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Proveedor:</strong></td><td>{{ payload.provider }}</td></tr>
+    <tr><td style="padding: 8px;"><strong>ID Pago:</strong></td><td>{{ payload.payment_id }}</td></tr>
+  </table>
+  <p><a href="{{ links.app_url }}/bookings/{{ payload.booking_id }}" style="background: #276749; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver reserva</a></p>
+</body>
+</html>

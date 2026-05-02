@@ -1,0 +1,1 @@
+{"title": "Reserva cancelada", "body": "Tu reserva en {{ payload.hotel_name }} fue cancelada.", "data": {"deep_link": "/bookings/{{ payload.booking_id }}"}}

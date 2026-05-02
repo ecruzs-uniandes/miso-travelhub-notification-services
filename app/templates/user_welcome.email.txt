@@ -1,0 +1,7 @@
+¡Bienvenido a TravelHub, {{ user.full_name }}!
+
+Estamos muy contentos de tenerte con nosotros.
+
+Explora y reserva: {{ links.app_url }}
+
+¿Tienes preguntas? {{ links.support_email }}
