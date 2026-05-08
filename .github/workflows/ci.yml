@@ -19,7 +19,6 @@ env:
 
   # PROD (Cloud Deploy canary)
   PROD_PROJECT_ID: travelhub-prod-492116
-  PROD_PROJECT_NUMBER: "974898737307"
   PROD_IMAGE: us-central1-docker.pkg.dev/travelhub-prod-492116/travelhub/notification-services
   PROD_WIF_PROVIDER: projects/974898737307/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   PROD_SA: github-deploy-notification@travelhub-prod-492116.iam.gserviceaccount.com
@@ -69,9 +68,9 @@ jobs:
       - name: Install lint tools
         run: pip install ruff flake8
       - name: ruff
-        run: ruff check app/ tests/ || true
+        run: ruff check app/ tests/
       - name: flake8
-        run: flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203 || true
+        run: flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
 
   # ── DEV: deploy directo a Cloud Run ──
   deploy-dev:
@@ -117,6 +116,7 @@ jobs:
             --no-cpu-throttling \
             --set-env-vars="ENV=dev,KAFKA_CONSUMER_ENABLED=true,KAFKA_BOOTSTRAP_SERVERS=10.10.3.3:9092,JWT_ISSUER=https://auth.travelhub.app,JWT_AUDIENCE=travelhub-api,APP_URL=https://app.travelhub.app,SUPPORT_EMAIL=soporte@travelhub.app,SENDGRID_FROM_EMAIL=noreply@travelhub.app,SENDGRID_FROM_NAME=TravelHub,SENDGRID_SANDBOX=true,FCM_PROJECT_ID=${{ env.DEV_PROJECT_ID }}" \
             --set-secrets="DATABASE_URL=dev-travelhub-notification-db-url:latest,SENDGRID_API_KEY=dev-travelhub-sendgrid-api-key:latest,FCM_CREDENTIALS_JSON=dev-travelhub-fcm-credentials:latest,INTERNAL_NOTIFY_TOKEN=dev-travelhub-internal-notify-token:latest" \
+            --service-account="${{ env.DEV_SA }}" \
             --quiet
 
   # ── PROD: Cloud Deploy canary (10% → 50% → 100%, aprobación manual) ──
@@ -146,11 +146,13 @@ jobs:
           docker push --all-tags ${{ env.PROD_IMAGE }}
       - name: Create Cloud Deploy release
         run: |
-          gcloud deploy releases create prod-${GITHUB_SHA::8}-$(date +%Y%m%d%H%M%S) \
-            --project=${{ env.PROD_PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --delivery-pipeline=${{ env.SERVICE_NAME }} \
-            --images=${{ env.SERVICE_NAME }}=${{ env.PROD_IMAGE }}:${{ github.sha }} \
+          SHORT_SHA="${GITHUB_SHA::8}"
+          TIMESTAMP="$(date +%Y%m%d%H%M%S)"
+          gcloud deploy releases create "prod-${SHORT_SHA}-${TIMESTAMP}" \
+            --project="${{ env.PROD_PROJECT_ID }}" \
+            --region="${{ env.REGION }}" \
+            --delivery-pipeline="notification-services-pipeline" \
+            --images="notification-services=${{ env.PROD_IMAGE }}:${{ github.sha }}" \
             --skaffold-file=skaffold.yaml
 
   # ── PR check: solo build, sin deploy ──
