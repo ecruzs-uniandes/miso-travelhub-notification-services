@@ -16,7 +16,7 @@ spec:
         run.googleapis.com/startup-cpu-boost: "true"
         run.googleapis.com/cpu-throttling: "false"
         run.googleapis.com/execution-environment: gen2
-        run.googleapis.com/network-interfaces: '[{"network":"travelhub-vpc","subnetwork":"subnet-services"}]'
+        run.googleapis.com/network-interfaces: '[{"network":"prod-travelhub-vpc","subnetwork":"prod-travelhub-subnet-services"}]'
         run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       containerConcurrency: 80
