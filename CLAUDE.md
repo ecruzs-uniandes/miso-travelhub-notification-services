@@ -23,6 +23,18 @@
 
 `notification-services` es el microservicio responsable del envío de notificaciones transaccionales a usuarios de TravelHub a través de múltiples canales: **Email**, **Push**, **SMS** y **WhatsApp**. En el MVP solo Email y Push están implementados; SMS y WhatsApp quedan como Strategy stub.
 
+### URLs Cloud Run
+
+| Ambiente | URL | Estado |
+|---|---|---|
+| **DEV** | `https://notification-services-ridyy4wz4q-uc.a.run.app` | ✅ Auto-deploy via push a feature/develop |
+| **PROD** | `https://notification-services-qhweqfkejq-uc.a.run.app` | ✅ Desplegado 2026-05-08 (env=prod, secrets sendgrid/fcm en placeholder hasta sustituir credenciales reales) |
+
+### ⚠ Bugs conocidos (deuda código, post-deploy 2026-05-08)
+
+1. **JWT rechazado incluso en llamada directa**: `POST /api/v1/notifications/preferences -H "Authorization: Bearer <jwt>"` directo al Cloud Run → 401 "No autenticado". El middleware `JWTDecodeMiddleware` no procesa correctamente el token. **Fix**: revisar `app/middleware/jwt_decode.py` y `app/middleware/chain.py` — el token decode debe ser no-verify (el gateway ya validó firma) y leer `X-Forwarded-Authorization` primero, fallback `Authorization`.
+2. **k8s/service-prod.yaml** tenía nombres de VPC de DEV (`travelhub-vpc/subnet-services`) — fixeado a `prod-travelhub-vpc/prod-travelhub-subnet-services` en commit `09dad0a` (2026-05-08).
+
 ### Responsabilidades
 
 1. **Consumir** eventos desde 3 topics Kafka publicados por otros servicios (`booking-events`, `payment-events`, `user-events`).
@@ -89,7 +101,7 @@
 11. **Persistencia in-app:** sí, los usuarios pueden consultar su histórico en la app.
 12. **Schema de eventos Kafka:** JSON estándar `{event_id, event_type, occurred_at, user_id, payload}`.
 13. **Networking GCP:** Direct VPC egress (NO VPC connector). Flag: `--network=travelhub-vpc --subnet=subnet-services --vpc-egress=private-ranges-only`.
-14. **PROD sin Kafka todavía:** desplegar con feature flag `KAFKA_CONSUMER_ENABLED=false`. Cuando Kafka PROD exista, se cambia el flag y se redespliega (sin recompilar).
+14. **PROD con Kafka desde 2026-05-08** (VM `prod-travelhub-kafka` en `10.20.3.3:9092`). El manifest `k8s/service-prod.yaml` aún tiene `KAFKA_CONSUMER_ENABLED=false` por inercia — cambiar a `true` cuando se quiera consumir eventos en PROD. Topics ya creados: `pms-sync-queue` (3p), `pms-sync-dlq` (1p). Falta crear `booking-events`, `payment-events`, `user-events`, `notification-dlq` cuando se active el consumer.
 15. **DB local:** `travelhub_notifications` (puerto 5432). DB DEV/PROD: tablas `notification_*` en BD compartida `travelhub`.
 16. **Tablas con prefijo `notification_*`** para no chocar con tablas de otros servicios en la BD compartida de DEV.
 17. **JWT validation:** mismo patrón que `pms-integration-services` — decode no-verify (el gateway ya validó firma + iss + aud + exp). El backend valida claims de negocio (RBAC, MFA donde aplique).
