@@ -16,27 +16,34 @@ class JWTDecodeMiddleware(BaseHTTPMiddleware):
         if request.url.path in EXEMPT_PATHS or request.url.path.endswith("/internal"):
             return await call_next(request)
 
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
+        # Default: no auth claims set
+        request.state.user_id = None
+        request.state.role = ""
+        request.state.claims = {}
+
+        # When traffic comes through API Gateway, GCP replaces "Authorization" with
+        # a service OIDC token and moves the original user JWT to
+        # "X-Forwarded-Authorization". Read X-Forwarded-Authorization first; fall
+        # back to Authorization for direct calls (bypass gateway).
+        token = None
+        for header in ("X-Forwarded-Authorization", "Authorization"):
+            value = request.headers.get(header, "")
+            if value.startswith("Bearer "):
+                token = value[7:]
+                break
+
+        if token:
             try:
                 claims = jwt.decode(
                     token,
                     key="",
                     algorithms=["RS256"],
-                    options={"verify_signature": False, "verify_exp": False},
+                    options={"verify_signature": False, "verify_exp": False, "verify_aud": False},
                 )
                 request.state.user_id = claims.get("sub")
                 request.state.role = claims.get("role", "")
                 request.state.claims = claims
             except Exception as exc:
                 logger.warning("jwt_decode_failed", extra={"error": str(exc)})
-                request.state.user_id = None
-                request.state.role = ""
-                request.state.claims = {}
-        else:
-            request.state.user_id = None
-            request.state.role = ""
-            request.state.claims = {}
 
         return await call_next(request)
