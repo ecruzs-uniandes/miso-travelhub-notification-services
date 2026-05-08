@@ -1,0 +1,87 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: notification-services
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/network-interfaces: '[{"network":"travelhub-vpc","subnetwork":"subnet-services"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: notification-services
+          ports:
+            - containerPort: 8004
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: ENV
+              value: prod
+            - name: KAFKA_CONSUMER_ENABLED
+              value: "false"
+            - name: JWT_ISSUER
+              value: https://auth.travelhub.app
+            - name: JWT_AUDIENCE
+              value: travelhub-api
+            - name: APP_URL
+              value: https://app.travelhub.app
+            - name: SUPPORT_EMAIL
+              value: soporte@travelhub.app
+            - name: SENDGRID_FROM_EMAIL
+              value: noreply@travelhub.app
+            - name: SENDGRID_FROM_NAME
+              value: TravelHub
+            - name: SENDGRID_SANDBOX
+              value: "false"
+            - name: FCM_PROJECT_ID
+              value: travelhub-prod-492116
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prod-travelhub-notification-db-url
+                  key: latest
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: prod-travelhub-sendgrid-api-key
+                  key: latest
+            - name: FCM_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: prod-travelhub-fcm-credentials
+                  key: latest
+            - name: INTERNAL_NOTIFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: prod-travelhub-internal-notify-token
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
