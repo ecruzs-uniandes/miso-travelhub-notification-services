@@ -30,10 +30,27 @@
 | **DEV** | `https://notification-services-ridyy4wz4q-uc.a.run.app` | ✅ Auto-deploy via push a feature/develop |
 | **PROD** | `https://notification-services-qhweqfkejq-uc.a.run.app` | ✅ Desplegado 2026-05-08 (env=prod, secrets sendgrid/fcm en placeholder hasta sustituir credenciales reales) |
 
-### ⚠ Bugs conocidos (deuda código, post-deploy 2026-05-08)
+### ✅ Bugs resueltos en 2026-05-08 sesión 2
 
-1. **JWT rechazado incluso en llamada directa**: `POST /api/v1/notifications/preferences -H "Authorization: Bearer <jwt>"` directo al Cloud Run → 401 "No autenticado". El middleware `JWTDecodeMiddleware` no procesa correctamente el token. **Fix**: revisar `app/middleware/jwt_decode.py` y `app/middleware/chain.py` — el token decode debe ser no-verify (el gateway ya validó firma) y leer `X-Forwarded-Authorization` primero, fallback `Authorization`.
-2. **k8s/service-prod.yaml** tenía nombres de VPC de DEV (`travelhub-vpc/subnet-services`) — fixeado a `prod-travelhub-vpc/prod-travelhub-subnet-services` en commit `09dad0a` (2026-05-08).
+1. **Auth: JWT rechazado** — RESUELTO en commit `b408eed`. Dos issues simultáneos en `app/middleware/jwt_decode.py`:
+   - Solo leía header `Authorization`. Cuando el request llega via gateway, GCP pone el OIDC token ahí y mueve el JWT del usuario a `X-Forwarded-Authorization`. Fix: leer `X-Forwarded-Authorization` primero, fallback `Authorization`.
+   - `jwt.decode` validaba `aud` por default (no se pasaba `audience=...` ni `verify_aud=False`). Cualquier token con aud claim → `InvalidAudienceError` silencioso → `state.user_id=None` → 401 desde RBACMiddleware. Fix: agregar `verify_aud: False`.
+2. **Migrations no corridas** — RESUELTO en commit `7d367de` + Cloud Run Job migrate ejecutado. La BD compartida `travelhub` ya tenía un `alembic_version` con revision de user-services, alembic upgrade head fallaba con `Can't locate revision`. Fix en `alembic/env.py`: `version_table='alembic_version_notification'` (override-able via env var `ALEMBIC_VERSION_TABLE`). Cloud Run Job `notification-services-migrate` desplegado con direct VPC egress + secret `DATABASE_URL`. Tablas `notification_preference`, `notification`, `notification_log` creadas.
+3. **k8s/service-prod.yaml** tenía nombres de VPC de DEV (`travelhub-vpc/subnet-services`) — fixeado a `prod-travelhub-vpc/prod-travelhub-subnet-services` en commit `09dad0a`.
+
+Smoke E2E final via dominio (`https://apitravelhub.site`) confirmado:
+- ✅ `GET /api/v1/notifications` → 200 lista paginada
+- ✅ `GET /api/v1/notifications/preferences` → 200 preferencias
+- ✅ `PUT /api/v1/notifications/preferences` → 200 actualizadas
+- ✅ `POST /api/v1/notifications/read-all` → 200
+
+**Cloud Run Job migrate**: para futuras migraciones, ejecutar:
+```bash
+gcloud run jobs execute notification-services-migrate \
+  --project=travelhub-prod-492116 --region=us-central1 \
+  --account=edwin.farmatodo@gmail.com --wait
+```
+Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
 
 ### Responsabilidades
 
