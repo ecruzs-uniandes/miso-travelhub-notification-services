@@ -43,7 +43,7 @@ spec:
             - name: SUPPORT_EMAIL
               value: soporte@travelhub.app
             - name: SENDGRID_FROM_EMAIL
-              value: noreply@travelhub.app
+              value: noreply@apitravelhub.site
             - name: SENDGRID_FROM_NAME
               value: TravelHub
             - name: SENDGRID_SANDBOX
