@@ -10,6 +10,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["device"])
 
 
-@router.get("/notifications/register_device")
+@router.get("/notifications/register-device")
 async def register_device():
     return "Endpoint works ok"
