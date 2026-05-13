@@ -1,8 +1,20 @@
-¡Hola {{ user.full_name }}!
+{% extends "_base_email.txt" %}
+
+{% block header_tag %}Reserva Cancelada{% endblock %}
+
+{% block content %}
+{% if user.full_name %}¡Hola {{ user.full_name }}!{% else %}¡Hola!{% endif %}
 
 Tu reserva en {{ payload.hotel_name }} ha sido cancelada.
-{% if payload.reason %}Motivo: {{ payload.reason }}{% endif %}
+{% if payload.reason %}
+Motivo: {{ payload.reason }}
+{% endif %}
+{% if payload.check_in %}
+  Check-in original:  {{ payload.check_in | date_es }}
+  Check-out original: {{ payload.check_out | date_es }}
+{% endif %}
 
 Ver mis reservas: {{ links.app_url }}/bookings
 
-¿Necesitas ayuda? {{ links.support_email }}
+Si fue un cargo de pago, el reembolso aparecerá en 5-10 días hábiles.
+{% endblock %}

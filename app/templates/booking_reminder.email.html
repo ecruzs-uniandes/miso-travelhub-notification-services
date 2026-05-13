@@ -1,13 +1,30 @@
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"><title>Recordatorio de Reserva</title></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <h1 style="color: #2c5282;">¡Hola {{ user.full_name }}!</h1>
-  <p>Te recordamos que tienes una reserva en <strong>{{ payload.hotel_name }}</strong> en <strong>{{ payload.days_until }} días</strong>.</p>
-  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Check-in:</strong></td><td>{{ payload.check_in }}</td></tr>
-    <tr><td style="padding: 8px;"><strong>Check-out:</strong></td><td>{{ payload.check_out }}</td></tr>
-  </table>
-  <p><a href="{{ links.app_url }}/bookings/{{ payload.booking_id }}" style="background: #2c5282; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver detalles</a></p>
-</body>
-</html>
+{% extends "_base_email.html" %}
+{% from "_macros.html" import greeting, cta_button, details_table %}
+
+{% block title %}Tu viaje se acerca{% endblock %}
+{% block header_tag %}Recordatorio{% endblock %}
+{% block header_bg %}#2c5282{% endblock %}
+{% block header_bg_color %}#2c5282{% endblock %}
+
+{% block content %}
+  <h1 style="margin:0 0 16px 0;font-size:24px;color:#1a202c;line-height:1.3;">{{ greeting(user) }}</h1>
+  <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#2d3748;">
+    Tu viaje se acerca: en <strong>{{ payload.days_until }} {{ 'día' if payload.days_until == 1 else 'días' }}</strong> es tu check-in en <strong>{{ payload.hotel_name }}</strong>.
+  </p>
+
+  {{ details_table([
+    ('Hotel', payload.hotel_name),
+    ('Check-in', payload.check_in | date_es),
+    ('Check-out', payload.check_out | date_es),
+    ('Dirección', payload.hotel_address | default_or('Disponible en la app'))
+  ]) }}
+
+  {{ cta_button(links.app_url ~ '/bookings/' ~ payload.booking_id, 'Ver detalles del viaje', '#2c5282') }}
+
+  <p style="margin:24px 0 8px 0;font-size:14px;color:#2d3748;font-weight:600;">Antes de salir, recuerda:</p>
+  <ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;color:#4a5568;line-height:1.8;">
+    <li>Lleva un documento de identidad válido</li>
+    <li>Confirma el horario de check-in con el hotel si llegas tarde</li>
+    <li>Guarda este correo o tu confirmación en la app</li>
+  </ul>
+{% endblock %}

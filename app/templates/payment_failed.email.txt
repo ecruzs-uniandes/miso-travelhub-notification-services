@@ -1,8 +1,21 @@
-¡Hola {{ user.full_name }}!
+{% extends "_base_email.txt" %}
 
-Hubo un problema al procesar tu pago.
-{% if payload.reason %}Motivo: {{ payload.reason }}{% endif %}
+{% block header_tag %}Pago Rechazado{% endblock %}
 
-Por favor intenta nuevamente: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+{% block content %}
+{% if user.full_name %}¡Hola {{ user.full_name }}!{% else %}¡Hola!{% endif %}
 
-¿Necesitas ayuda? {{ links.support_email }}
+No pudimos procesar tu pago. Tu reserva sigue pendiente.
+{% if payload.reason %}
+Motivo: {{ payload.reason }}
+{% endif %}
+
+  Monto:     {{ payload.amount | currency(payload.currency or 'COP') }}
+  Proveedor: {{ payload.provider | upper }}
+  Reserva:   {{ payload.booking_id }}
+
+Verifica fondos, CVV y fecha de vencimiento, e intenta otra vez:
+{{ links.app_url }}/bookings/{{ payload.booking_id }}
+
+Si el problema continua, escribenos a {{ links.support_email }}.
+{% endblock %}

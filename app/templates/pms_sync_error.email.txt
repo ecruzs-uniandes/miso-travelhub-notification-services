@@ -1,8 +1,25 @@
-Error de Sincronización PMS
+{% extends "_base_email.txt" %}
 
-Hotel ID: {{ payload.hotel_id }}
-{% if payload.error %}Error: {{ payload.error }}{% endif %}
+{% block header_tag %}PMS - Error{% endblock %}
+
+{% block content %}
+Error durante sincronizacion
+
+La sincronizacion con el PMS de {{ payload.hotel_name | default_or('tu hotel') }} fallo.
+El inventario y precios pueden estar desactualizados en TravelHub.
+{% if payload.error %}
+Error: {{ payload.error }}
+{% endif %}
+  Hotel:    {{ payload.hotel_name | default_or('-') }}
+  Hotel ID: {{ payload.hotel_id }}
+
+Que revisar:
+  - Credenciales del PMS
+  - URL del endpoint
+  - Conectividad
+  - Formato de respuesta
 
 Ir al panel: {{ links.app_url }}/admin/pms
 
-¿Necesitas ayuda? {{ links.support_email }}
+Si persiste, escribe a {{ links.support_email }}.
+{% endblock %}

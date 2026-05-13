@@ -1,7 +1,16 @@
-¡Bienvenido a TravelHub, {{ user.full_name }}!
+{% extends "_base_email.txt" %}
 
-Estamos muy contentos de tenerte con nosotros.
+{% block header_tag %}Bienvenido{% endblock %}
 
-Explora y reserva: {{ links.app_url }}
+{% block content %}
+{% if user.full_name %}¡Bienvenido a TravelHub, {{ user.full_name }}!{% else %}¡Bienvenido a TravelHub!{% endif %}
 
-¿Tienes preguntas? {{ links.support_email }}
+Gracias por crear tu cuenta. Ya puedes explorar hoteles y reservar al instante.
+
+Para comenzar:
+  1. Completa tu perfil para personalizar recomendaciones
+  2. Activa preferencias de notificacion (email / push)
+  3. Busca tu primer destino y reserva
+
+Explorar hoteles: {{ links.app_url }}
+{% endblock %}

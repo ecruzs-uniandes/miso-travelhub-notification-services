@@ -1,9 +1,18 @@
-¡Hola {{ user.full_name }}!
+{% extends "_base_email.txt" %}
 
-Tu pago ha sido procesado exitosamente.
+{% block header_tag %}Pago Confirmado{% endblock %}
 
-Monto: {{ payload.amount }} {{ payload.currency }}
-Proveedor: {{ payload.provider }}
-ID Pago: {{ payload.payment_id }}
+{% block content %}
+{% if user.full_name %}¡Hola {{ user.full_name }}!{% else %}¡Hola!{% endif %}
 
-Ver reserva: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+Recibimos tu pago correctamente. Tu reserva queda confirmada.
+
+  Monto:      {{ payload.amount | currency(payload.currency or 'COP') }}
+  Proveedor:  {{ payload.provider | upper }}
+  ID de pago: {{ payload.payment_id }}
+  Reserva:    {{ payload.booking_id }}
+
+Ver mi reserva: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+
+Este comprobante es valido como recibo.
+{% endblock %}

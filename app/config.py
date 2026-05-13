@@ -22,6 +22,11 @@ class Settings(BaseSettings):
 
     INTERNAL_NOTIFY_TOKEN: str = "change-me"
 
+    # Endpoint /admin/test-event para QA. Default OFF en PROD.
+    # Cuando true, expone POST /api/v1/notifications/admin/test-event
+    # protegido con X-Internal-Token, que dispara cualquier evento Kafka simulado.
+    ADMIN_TEST_ENDPOINT_ENABLED: bool = False
+
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@travelhub.app"
     SENDGRID_FROM_NAME: str = "TravelHub"

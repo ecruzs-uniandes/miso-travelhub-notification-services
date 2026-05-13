@@ -1,12 +1,30 @@
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"><title>Conflicto de Sincronización PMS</title></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <h1 style="color: #c05621;">Conflicto de Sincronización PMS</h1>
-  <p>Se detectó un conflicto durante la sincronización del PMS para el hotel <strong>{{ payload.hotel_id }}</strong>.</p>
-  {% if payload.conflict_type %}<p><strong>Tipo de conflicto:</strong> {{ payload.conflict_type }}</p>{% endif %}
-  {% if payload.description %}<p><strong>Descripción:</strong> {{ payload.description }}</p>{% endif %}
-  <p>Revisa los detalles en tu panel de administración.</p>
-  <p><a href="{{ links.app_url }}/admin/pms" style="background: #c05621; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver en panel</a></p>
-</body>
-</html>
+{% extends "_base_email.html" %}
+{% from "_macros.html" import cta_button, details_table, alert %}
+
+{% block title %}Conflicto de Sincronización PMS{% endblock %}
+{% block header_tag %}PMS — Conflicto{% endblock %}
+{% block header_bg %}#c05621{% endblock %}
+{% block header_bg_color %}#c05621{% endblock %}
+
+{% block content %}
+  <h1 style="margin:0 0 16px 0;font-size:24px;color:#1a202c;line-height:1.3;">Conflicto detectado durante sincronización</h1>
+  <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#2d3748;">
+    Se detectó un conflicto al sincronizar inventario con el PMS de <strong>{{ payload.hotel_name | default_or('tu hotel') }}</strong>.
+    Algunos cambios pueden no haberse aplicado.
+  </p>
+
+  {{ alert('Tu hotel sigue operando. Solo necesitas revisar y resolver los conflictos manualmente para mantener consistencia.', 'warning') }}
+
+  {{ details_table([
+    ('Hotel', payload.hotel_name | default_or('—')),
+    ('Hotel ID', payload.hotel_id),
+    ('Tipo de conflicto', payload.conflict_type | default_or('General')),
+    ('Descripción', payload.description | default_or('Ver detalle en panel'))
+  ]) }}
+
+  {{ cta_button(links.app_url ~ '/admin/pms', 'Resolver en el panel', '#c05621') }}
+
+  <p style="margin:24px 0 0 0;font-size:13px;color:#718096;line-height:1.5;">
+    Los conflictos suelen ocurrir cuando hay cambios simultáneos en el PMS y en TravelHub. Revisa el log de sincronización para más contexto.
+  </p>
+{% endblock %}

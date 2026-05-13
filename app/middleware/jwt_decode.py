@@ -13,7 +13,8 @@ EXEMPT_PATHS = {"/health", "/ready", "/docs", "/openapi.json"}
 
 class JWTDecodeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path in EXEMPT_PATHS or request.url.path.endswith("/internal"):
+        path = request.url.path
+        if path in EXEMPT_PATHS or path.endswith("/internal") or path.endswith("/admin/test-event"):
             return await call_next(request)
 
         # Default: no auth claims set
