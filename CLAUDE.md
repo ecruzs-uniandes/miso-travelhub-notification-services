@@ -28,7 +28,7 @@
 | Ambiente | URL | Estado |
 |---|---|---|
 | **DEV** | `https://notification-services-ridyy4wz4q-uc.a.run.app` | ✅ Auto-deploy via push a feature/develop |
-| **PROD** | `https://notification-services-qhweqfkejq-uc.a.run.app` | ✅ Desplegado 2026-05-08 (env=prod, secrets sendgrid/fcm en placeholder hasta sustituir credenciales reales) |
+| **PROD** | `https://notification-services-qhweqfkejq-uc.a.run.app` | ✅ Desplegado 2026-05-08. SendGrid operativo desde 2026-05-12 (dominio `apitravelhub.site` autenticado, sender `noreply@apitravelhub.site`, secret v3). FCM pendiente (placeholder). Revisión actual: `notification-services-00010-pf8` (rebuild 2026-05-13 con fix de observability). |
 
 ### ✅ Bugs resueltos en 2026-05-08 sesión 2
 
@@ -51,6 +51,25 @@ gcloud run jobs execute notification-services-migrate \
   --account=edwin.farmatodo@gmail.com --wait
 ```
 Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
+
+### ✅ Bugs resueltos en 2026-05-13 sesión 3
+
+4. **Cloud Run traffic stuck en revisión antigua** — RESUELTO 2026-05-13. Los 3 "deploys" del 12-may (revs `00007-z6k`, `00008-vrv`, `00009-prl`) eran `gcloud run services update --update-secrets=...` que crean revisión nueva pero **no traen imagen nueva** — todos reutilizaron `sha256:7079025af...` (la imagen original de la rev `mox3dalf` del 2026-05-09). Mientras tanto el traffic seguía 100% en `mox3dalf` (Cloud Run no shifteaba auto). El código de `mox3dalf` tenía un bug en `SendGridSender` post-send: el email salía a SendGrid (status 202) pero algo del wrapping del response lanzaba excepción → `_send_channel` capturaba como `failed` → `notification_log.status=failed` y log decía `notification_send_failed`. Fix: rebuild + deploy con imagen nueva (`gcloud builds submit --tag ...`) → rev `00010-pf8` con `sha256:8ee4c44e...` + `gcloud run services update-traffic --to-revisions=notification-services-00010-pf8=100` para forzar shift. Post-fix: logs muestran solo `INFO email_sent`, sin `circuit_breaker_opened`.
+5. **Observability: `notification_send_failed` log silencioso** — RESUELTO en este commit. [app/services/notification_service.py:210](app/services/notification_service.py#L210) usaba `logger.error("...", extra={"error": ...})` pero el formatter en [app/utils/logger.py:11](app/utils/logger.py#L11) (`%(asctime)s %(levelname)s %(name)s %(message)s`) no renderiza `extra`. El stack trace nunca aparecía en Cloud Logging → diagnóstico imposible sin reproducir. Fix: string interpolation con `%s` + `exc_info=True` → traceback completo en stdout.
+6. **`deploy/deploy-prod.sh` con valores DEV** — RESUELTO en este commit. El script tenía `--network=travelhub-vpc --subnet=subnet-services` (nombres DEV — no existen en PROD, fallaría al correrlo) y `SENDGRID_FROM_EMAIL=noreply@travelhub.app` (dominio antiguo, no autenticado). Fix: `prod-travelhub-vpc/prod-travelhub-subnet-services` + `noreply@apitravelhub.site`.
+
+**Lección operativa (importante para futuros deploys):**
+Tras cada `gcloud run deploy`, verificar:
+```bash
+gcloud run services describe notification-services --project=travelhub-prod-492116 \
+  --region=us-central1 --format='value(status.latestReadyRevisionName,status.latestCreatedRevisionName,status.traffic[0].revisionName)'
+```
+Las 3 deben coincidir. Si no, forzar shift con:
+```bash
+gcloud run services update-traffic notification-services --to-latest \
+  --project=travelhub-prod-492116 --region=us-central1
+```
+Alternativa más explícita: usar `--to-revisions=<nombre-rev>=100`.
 
 ### Responsabilidades
 
