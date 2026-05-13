@@ -209,8 +209,11 @@ class NotificationService:
             log_entry.error_message = "Provider not implemented for MVP"
         except Exception as exc:
             logger.error(
-                "notification_send_failed",
-                extra={"channel": channel, "event_id": event_id, "error": str(exc)},
+                "notification_send_failed channel=%s event_id=%s error=%s",
+                channel,
+                event_id,
+                str(exc),
+                exc_info=True,
             )
             log_entry.status = "failed"
             log_entry.error_message = str(exc)
