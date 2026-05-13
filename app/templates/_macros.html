@@ -1,0 +1,49 @@
+{# Saludo con fallback si full_name viene vacío #}
+{% macro greeting(user) %}
+  {%- if user.full_name and user.full_name.strip() -%}
+    ¡Hola {{ user.full_name }}!
+  {%- else -%}
+    ¡Hola!
+  {%- endif -%}
+{% endmacro %}
+
+{# Botón CTA inline-styled #}
+{% macro cta_button(href, label, color="#2c5282") %}
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+    <tr>
+      <td bgcolor="{{ color }}" style="background-color:{{ color }};border-radius:6px;">
+        <a href="{{ href }}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">{{ label }}</a>
+      </td>
+    </tr>
+  </table>
+{% endmacro %}
+
+{# Card de detalles con filas key/value #}
+{% macro details_table(rows) %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;background-color:#f7fafc;border-radius:6px;border:1px solid #e2e8f0;">
+    {% for label, value in rows %}
+      <tr>
+        <td style="padding:14px 20px;{% if not loop.last %}border-bottom:1px solid #e2e8f0;{% endif %}">
+          <div style="font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">{{ label }}</div>
+          <div style="font-size:15px;color:#1a202c;font-weight:500;">{{ value }}</div>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endmacro %}
+
+{# Banner de alerta (success / warning / danger / info).
+   label es opcional y se renderiza en bold; body es texto plano (escapado).
+   Esto evita pasar HTML como string desde el caller (autoescape rompería <strong>). #}
+{% macro alert(body, kind="info", label=None) %}
+  {% set bg = {"success":"#f0fff4","warning":"#fffaf0","danger":"#fff5f5","info":"#ebf8ff"}[kind] %}
+  {% set border = {"success":"#9ae6b4","warning":"#fbd38d","danger":"#feb2b2","info":"#90cdf4"}[kind] %}
+  {% set color = {"success":"#22543d","warning":"#7b341e","danger":"#742a2a","info":"#2a4365"}[kind] %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background-color:{{ bg }};border-left:4px solid {{ border }};border-radius:4px;">
+    <tr>
+      <td style="padding:16px 20px;font-size:14px;color:{{ color }};line-height:1.5;">
+        {% if label %}<strong>{{ label }}</strong> {% endif %}{{ body }}
+      </td>
+    </tr>
+  </table>
+{% endmacro %}

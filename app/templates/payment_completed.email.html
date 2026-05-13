@@ -1,14 +1,29 @@
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"><title>Pago Completado</title></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <h1 style="color: #276749;">¡Hola {{ user.full_name }}!</h1>
-  <p>Tu pago ha sido procesado exitosamente.</p>
-  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Monto:</strong></td><td>{{ payload.amount }} {{ payload.currency }}</td></tr>
-    <tr><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><strong>Proveedor:</strong></td><td>{{ payload.provider }}</td></tr>
-    <tr><td style="padding: 8px;"><strong>ID Pago:</strong></td><td>{{ payload.payment_id }}</td></tr>
-  </table>
-  <p><a href="{{ links.app_url }}/bookings/{{ payload.booking_id }}" style="background: #276749; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">Ver reserva</a></p>
-</body>
-</html>
+{% extends "_base_email.html" %}
+{% from "_macros.html" import greeting, cta_button, details_table, alert %}
+
+{% block title %}Pago Completado{% endblock %}
+{% block header_tag %}Pago Confirmado{% endblock %}
+{% block header_bg %}#276749{% endblock %}
+{% block header_bg_color %}#276749{% endblock %}
+
+{% block content %}
+  <h1 style="margin:0 0 16px 0;font-size:24px;color:#1a202c;line-height:1.3;">{{ greeting(user) }}</h1>
+  <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#2d3748;">
+    Recibimos tu pago correctamente. Tu reserva queda confirmada y asegurada.
+  </p>
+
+  {{ alert('Pago procesado por ' ~ (payload.provider | default('su proveedor') | upper) ~ ' el ' ~ (payload.processed_at | datetime_es | default_or('hoy')), 'success') }}
+
+  {{ details_table([
+    ('Monto', payload.amount | currency(payload.currency or 'COP')),
+    ('Proveedor', payload.provider | default('—') | upper),
+    ('ID de pago', payload.payment_id),
+    ('Reserva', payload.booking_id)
+  ]) }}
+
+  {{ cta_button(links.app_url ~ '/bookings/' ~ payload.booking_id, 'Ver mi reserva', '#276749') }}
+
+  <p style="margin:24px 0 0 0;font-size:13px;color:#718096;line-height:1.5;">
+    Este comprobante es válido como recibo. Si necesitas factura, solicítala desde tu panel.
+  </p>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "_base_email.txt" %}
+
+{% block header_tag %}PMS - Sincronizado{% endblock %}
+
+{% block content %}
+Sincronizacion completada
+
+La sincronizacion con el PMS de {{ payload.hotel_name | default_or('tu hotel') }}
+termino correctamente. Inventario y precios al dia.
+
+  Hotel:                {{ payload.hotel_name | default_or('-') }}
+  Hotel ID:             {{ payload.hotel_id }}
+  Habitaciones:         {{ payload.sync_count | default_or('-') }}
+{% if payload.duration_ms %}  Duracion:             {{ payload.duration_ms }} ms{% endif %}
+{% if payload.next_sync_at %}  Proxima sincronizacion: {{ payload.next_sync_at | date_es }}{% endif %}
+
+Ver detalle: {{ links.app_url }}/admin/pms
+
+Recibes este correo porque tienes notificaciones de sincronizacion habilitadas.
+{% endblock %}

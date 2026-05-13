@@ -1,7 +1,20 @@
-Conflicto de Sincronización PMS
+{% extends "_base_email.txt" %}
 
-Hotel ID: {{ payload.hotel_id }}
-{% if payload.conflict_type %}Tipo: {{ payload.conflict_type }}{% endif %}
-{% if payload.description %}Descripción: {{ payload.description }}{% endif %}
+{% block header_tag %}PMS - Conflicto{% endblock %}
 
-Ver en panel: {{ links.app_url }}/admin/pms
+{% block content %}
+Conflicto detectado durante sincronizacion
+
+Se detecto un conflicto al sincronizar el PMS de
+{{ payload.hotel_name | default_or('tu hotel') }}.
+
+Tu hotel sigue operando. Solo necesitas revisar los conflictos para
+mantener consistencia.
+
+  Hotel:    {{ payload.hotel_name | default_or('-') }}
+  Hotel ID: {{ payload.hotel_id }}
+  Tipo:     {{ payload.conflict_type | default_or('General') }}
+{% if payload.description %}  Detalle:  {{ payload.description }}{% endif %}
+
+Resolver en el panel: {{ links.app_url }}/admin/pms
+{% endblock %}

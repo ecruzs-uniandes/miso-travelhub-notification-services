@@ -1,0 +1,11 @@
+============================================================
+  TravelHub  ·  {% block header_tag %}Notificación{% endblock +%}
+============================================================
+
+{% block content %}{% endblock %}
+
+------------------------------------------------------------
+TravelHub · Bogotá, Colombia
+¿Necesitas ayuda? {{ links.support_email }}
+------------------------------------------------------------
+© 2026 TravelHub. MISW4501 — Grupo 9 — Universidad de los Andes.

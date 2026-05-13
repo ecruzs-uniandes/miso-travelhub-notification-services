@@ -1,8 +1,20 @@
-¡Hola {{ user.full_name }}!
+{% extends "_base_email.txt" %}
 
-Recordatorio: tienes una reserva en {{ payload.hotel_name }} en {{ payload.days_until }} días.
+{% block header_tag %}Recordatorio de viaje{% endblock %}
 
-Check-in: {{ payload.check_in }}
-Check-out: {{ payload.check_out }}
+{% block content %}
+{% if user.full_name %}¡Hola {{ user.full_name }}!{% else %}¡Hola!{% endif %}
+
+Tu viaje se acerca: en {{ payload.days_until }} {{ 'día' if payload.days_until == 1 else 'días' }} es tu check-in.
+
+  Hotel:     {{ payload.hotel_name }}
+  Check-in:  {{ payload.check_in | date_es }}
+  Check-out: {{ payload.check_out | date_es }}
 
 Ver detalles: {{ links.app_url }}/bookings/{{ payload.booking_id }}
+
+Antes de salir:
+  - Lleva documento de identidad valido
+  - Confirma horario de check-in si llegas tarde
+  - Guarda este correo como respaldo
+{% endblock %}

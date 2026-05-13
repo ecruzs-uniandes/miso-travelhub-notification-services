@@ -1,11 +1,18 @@
-¡Hola {{ user.full_name }}!
+{% extends "_base_email.txt" %}
+
+{% block header_tag %}Reserva Confirmada{% endblock %}
+
+{% block content %}
+{% if user.full_name %}¡Hola {{ user.full_name }}!{% else %}¡Hola!{% endif %}
 
 Tu reserva en {{ payload.hotel_name }} está confirmada.
 
-Check-in: {{ payload.check_in }}
-Check-out: {{ payload.check_out }}
-Total: {{ payload.total }} {{ payload.currency }}
+  Hotel:     {{ payload.hotel_name }}
+  Check-in:  {{ payload.check_in | date_es }}
+  Check-out: {{ payload.check_out | date_es }}
+  Total:     {{ payload.total | currency(payload.currency or 'COP') }}
 
 Ver detalles: {{ links.app_url }}/bookings/{{ payload.booking_id }}
 
-¿Necesitas ayuda? {{ links.support_email }}
+Conserva este correo como comprobante.
+{% endblock %}
