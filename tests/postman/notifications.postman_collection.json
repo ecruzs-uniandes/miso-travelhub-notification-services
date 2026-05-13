@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "TravelHub Notifications — QA Suite",
+    "description": "Colección para probar notification-services.\n\n## Configuración (variables de la colección)\n- `base_url`: URL del servicio (default: PROD direct https://notification-services-qhweqfkejq-uc.a.run.app)\n- `internal_token`: valor del secret `prod-travelhub-internal-notify-token`\n- `user_id`: UUID del destinatario, debe tener `notification_preference` configurada en BD\n\n## Estructura\n- **Health** — endpoints públicos sin auth\n- **Internal (pms_sync)** — 3 tipos: requieren `X-Internal-Token`. Schema: `{type, user_id, hotel_id, details, recipients}`\n- **Admin Test Event (kafka simulado)** — 7 tipos: requieren `ADMIN_TEST_ENDPOINT_ENABLED=true` en PROD + `X-Internal-Token`. Schema: `{event_type, user_id, payload}`\n\n## Cómo activar el endpoint admin en PROD (1 sola vez)\n```bash\ngcloud run services update notification-services \\\n  --project=travelhub-prod-492116 --region=us-central1 \\\n  --update-env-vars=ADMIN_TEST_ENDPOINT_ENABLED=true\n```\n\nPara desactivar después de probar:\n```bash\ngcloud run services update notification-services \\\n  --project=travelhub-prod-492116 --region=us-central1 \\\n  --update-env-vars=ADMIN_TEST_ENDPOINT_ENABLED=false\n```",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://notification-services-qhweqfkejq-uc.a.run.app",
+      "type": "string"
+    },
+    {
+      "key": "internal_token",
+      "value": "REPLACE_WITH_SECRET_FROM_GCP",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "b3949db6-e101-45d4-83d4-9d81ce1eda3c",
+      "type": "string"
+    },
+    {
+      "key": "hotel_id",
+      "value": "11111111-2222-3333-4444-555555555555",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ready",
+              "host": ["{{base_url}}"],
+              "path": ["ready"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal (pms_sync)",
+      "description": "Endpoint POST /api/v1/notifications/internal — para los 3 tipos pms_sync_*. NO se puede usar para booking/payment/user.",
+      "item": [
+        {
+          "name": "pms_sync_complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"pms_sync_complete\",\n  \"user_id\": \"{{user_id}}\",\n  \"hotel_id\": \"{{hotel_id}}\",\n  \"details\": {\n    \"hotel_name\": \"Hotel Tequendama\",\n    \"sync_count\": 42,\n    \"duration_ms\": 1850,\n    \"next_sync_at\": \"2026-05-13T20:00:00Z\"\n  },\n  \"recipients\": [\"hotel_admin\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/internal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "internal"]
+            }
+          }
+        },
+        {
+          "name": "pms_sync_conflict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"pms_sync_conflict\",\n  \"user_id\": \"{{user_id}}\",\n  \"hotel_id\": \"{{hotel_id}}\",\n  \"details\": {\n    \"hotel_name\": \"Hotel Tequendama\",\n    \"conflict_type\": \"Doble reserva\",\n    \"description\": \"Habitación 'Suite Junior' tiene 2 reservas para 2026-06-15\"\n  },\n  \"recipients\": [\"hotel_admin\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/internal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "internal"]
+            }
+          }
+        },
+        {
+          "name": "pms_sync_error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"pms_sync_error\",\n  \"user_id\": \"{{user_id}}\",\n  \"hotel_id\": \"{{hotel_id}}\",\n  \"details\": {\n    \"hotel_name\": \"Hotel Tequendama\",\n    \"error\": \"Connection timeout to pms-api.example.com after 30s\",\n    \"last_attempt_at\": \"2026-05-13T13:55:00Z\",\n    \"retry_count\": 3\n  },\n  \"recipients\": [\"hotel_admin\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/internal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "internal"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Test Event (kafka simulado)",
+      "description": "Endpoint POST /api/v1/notifications/admin/test-event — simula un evento Kafka sin pasar por el broker. Requiere ADMIN_TEST_ENDPOINT_ENABLED=true en PROD.",
+      "item": [
+        {
+          "name": "booking.confirmed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.confirmed\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"bk_abc123\",\n    \"hotel_name\": \"Hotel Tequendama\",\n    \"check_in\": \"2026-06-15\",\n    \"check_out\": \"2026-06-18\",\n    \"total\": 750000,\n    \"currency\": \"COP\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "booking.cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.cancelled\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"bk_xyz789\",\n    \"hotel_name\": \"Hotel Estelar\",\n    \"check_in\": \"2026-07-01\",\n    \"check_out\": \"2026-07-05\",\n    \"reason\": \"Solicitud del huésped (cambio de planes)\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "booking.reminder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.reminder\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"bk_rem456\",\n    \"hotel_name\": \"Hotel Bogotá Plaza\",\n    \"days_until\": 3,\n    \"check_in\": \"2026-05-16\",\n    \"check_out\": \"2026-05-18\",\n    \"hotel_address\": \"Cra 7 #71-21, Bogotá\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "payment.completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"payment.completed\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"payment_id\": \"py_pay111\",\n    \"booking_id\": \"bk_abc123\",\n    \"amount\": 750000,\n    \"currency\": \"COP\",\n    \"provider\": \"stripe\",\n    \"processed_at\": \"2026-05-13T11:24:00Z\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "payment.failed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"payment.failed\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"payment_id\": \"py_pay222\",\n    \"booking_id\": \"bk_def456\",\n    \"amount\": 450000,\n    \"currency\": \"COP\",\n    \"provider\": \"mercadopago\",\n    \"reason\": \"Fondos insuficientes en la tarjeta terminada en 4242\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "user.welcome",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"user.welcome\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"email\": \"edwin.farmatodo@gmail.com\",\n    \"full_name\": \"Edwin Cruz\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        },
+        {
+          "name": "user.password_reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"user.password_reset\",\n  \"user_id\": \"{{user_id}}\",\n  \"payload\": {\n    \"reset_url\": \"https://app.travelhub.app/auth/reset?token=abc.def.ghi\",\n    \"request_ip\": \"190.85.12.34\",\n    \"request_device\": \"Chrome 120 / macOS\",\n    \"requested_at\": \"2026-05-13T14:30:00Z\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "admin", "test-event"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

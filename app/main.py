@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin import router as admin_router
 from app.api.device import router as device_router
 from app.api.health import router as health_router
 from app.api.internal import router as internal_router
@@ -34,6 +35,7 @@ setup_middleware(app)
 app.include_router(health_router)
 app.include_router(public_router, prefix="/api/v1")
 app.include_router(internal_router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
 app.include_router(device_router, prefix="/api/v1")
 
 @app.on_event("startup")
