@@ -6,11 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.schemas.internal import (
+    EventIngestionRequest,
+    EventIngestionResponse,
     InternalNotificationRequest,
     InternalNotificationResponse,
     WelcomeRegistrationRequest,
     WelcomeRegistrationResponse,
 )
+from app.schemas.events import EventEnvelope
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -88,4 +91,63 @@ async def internal_welcome(
     return WelcomeRegistrationResponse(
         notification_id=notification_id,
         channels_sent=channels_sent,
+    )
+
+
+@router.post(
+    "/notifications/events",
+    response_model=EventIngestionResponse,
+    status_code=202,
+    dependencies=[Depends(verify_internal_token)],
+    summary="Ingesta HTTP de eventos (reemplaza el consumo Kafka por dominio)",
+)
+async def ingest_event(
+    request: EventIngestionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reemplaza el flujo Kafka booking-events / payment-events / user-events:
+    los workers de cada dominio (booking, payment, user) publican aquí vía HTTP
+    el mismo envelope que iba al broker. Internamente se delega al mismo
+    process_event() que usa el consumer Kafka y /admin/test-event.
+
+    Auth: header `X-Internal-Token` (mismo secreto que /internal y /internal/welcome).
+    Idempotencia: por (event_id, channel) en notification_log.
+    """
+    envelope = EventEnvelope(
+        event_id=request.event_id,
+        event_type=request.event_type,
+        occurred_at=request.occurred_at,
+        user_id=request.user_id,
+        payload=request.payload,
+    )
+    logger.info(
+        "events_ingest_received event_type=%s event_id=%s user_id=%s",
+        envelope.event_type,
+        envelope.event_id,
+        str(envelope.user_id),
+    )
+
+    service = NotificationService(db)
+    try:
+        await service.process_event(envelope)
+        await db.commit()
+    except Exception as exc:
+        logger.error(
+            "events_ingest_failed event_type=%s event_id=%s error=%s",
+            envelope.event_type,
+            envelope.event_id,
+            str(exc),
+            exc_info=True,
+        )
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error procesando evento '{envelope.event_type}': {exc}",
+        )
+
+    return EventIngestionResponse(
+        accepted=True,
+        event_id=envelope.event_id,
+        event_type=envelope.event_type,
+        user_id=envelope.user_id,
     )

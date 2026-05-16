@@ -2,7 +2,7 @@
 
 **Servicio:** `notification-services`
 **Versión:** 1.0.0
-**Última actualización:** 2026-05-01
+**Última actualización:** 2026-05-16
 
 ---
 
@@ -15,7 +15,7 @@
 | Local | `http://localhost:8004` | — |
 
 Las rutas públicas se exponen como `/api/v1/notifications/*` en el gateway.
-El endpoint interno (`/api/v1/notifications/internal`) **no está en el gateway** — solo es alcanzable desde `subnet-services`.
+Los endpoints internos (`/api/v1/notifications/internal`, `/api/v1/notifications/internal/welcome`, `/api/v1/notifications/events`) y de QA (`/api/v1/notifications/admin/test-event`) **no están en el gateway** — solo son alcanzables desde `subnet-services` y autenticados con `X-Internal-Token`.
 
 ---
 
@@ -33,9 +33,8 @@ TOKEN=$(curl -s -X POST https://user-services-ridyy4wz4q-uc.a.run.app/api/v1/aut
   -d '{"email":"tu@email.com","password":"tupassword"}' | jq -r '.access_token')
 ```
 
-### Endpoint interno
-Requiere header `X-Internal-Token` con el valor del secret `dev-travelhub-internal-notify-token`.
-No requiere JWT.
+### Endpoints internos (server-to-server)
+Requieren header `X-Internal-Token` con el valor del secret `{prefix}-internal-notify-token`. No requieren JWT y NO están expuestos por el API Gateway: los callers (otros Cloud Run del monorepo) los invocan directo a la URL de Cloud Run del servicio. Incluye `/internal` (pms-sync-worker), `/internal/welcome` (user-services), `/events` (booking/payment/user workers), `/admin/test-event` (QA, feature-flagged).
 
 ---
 
@@ -309,6 +308,108 @@ curl -s -X POST \
     "recipients": ["hotel_admin"]
   }' | jq .
 ```
+
+---
+
+### POST /api/v1/notifications/events
+
+Ingesta HTTP genérica de eventos de notificación. **Sustituye** el consumo Kafka que originalmente este servicio iba a hacer de los topics `booking-events`, `payment-events`, `user-events`: ahora los workers de cada dominio (booking, payment, user) llaman a este endpoint con el mismo envelope que iban a publicar al broker.
+
+Internamente delega al mismo `process_event()` que usa el consumer Kafka y `/admin/test-event`, así que renderización de plantillas, idempotencia por `event_id`, selección de canales y reintentos siguen idénticos.
+
+**No está en el API Gateway. No requiere JWT. Requiere `X-Internal-Token`.**
+
+**Callers esperados:** `booking-service`, `payments-service`, `user-services` (cuando emita welcome/password-reset/email-verification) — todos vía Cloud Run-to-Cloud Run dentro de la VPC.
+
+**Header requerido:**
+```
+X-Internal-Token: <valor de secret {prefix}-internal-notify-token>
+```
+
+**Body (envelope estándar TravelHub):**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `event_id` | string | ✅ | ID único del evento. Idempotencia: mismo `event_id+channel` no reenvía. |
+| `event_type` | string | ✅ | Tipo de evento. Lista cerrada — ver tabla abajo. |
+| `occurred_at` | datetime ISO-8601 | ✅ | Cuándo ocurrió el evento de dominio (UTC). |
+| `user_id` | UUID | ✅ | Destinatario. Debe existir en `notification_preference` (o se autoupserts en `user.welcome`). |
+| `payload` | object | ✅ | Campos específicos del `event_type` — ver schemas Pydantic. |
+
+**`event_type` soportados:**
+
+| event_type | Payload mínimo | Plantilla |
+|---|---|---|
+| `booking.confirmed` | `{booking_id, hotel_name, check_in, check_out, total, currency}` | `booking_confirmed.email.*` |
+| `booking.cancelled` | `{booking_id, hotel_name, check_in, check_out, reason?}` | `booking_cancelled.email.*` |
+| `booking.reminder` | `{booking_id, hotel_name, check_in, check_out, days_until}` | `booking_reminder.email.*` |
+| `payment.completed` | `{payment_id, booking_id, amount, currency, provider}` | `payment_completed.email.*` |
+| `payment.failed` | `{payment_id, booking_id, amount, currency, reason?}` | `payment_failed.email.*` |
+| `user.welcome` | `{email, full_name}` | `user_welcome.email.*` |
+| `user.password_reset` | `{email, full_name, reset_token, reset_url}` | `user_password_reset.email.*` |
+
+Un `event_type` no listado responde 202 igualmente, pero el dispatcher loguea `unknown_event_type` y no envía nada (mismo comportamiento que el consumer Kafka — no es error técnico).
+
+**Body ejemplo:**
+```json
+{
+  "event_id": "evt_01HZX9ABC123",
+  "event_type": "booking.confirmed",
+  "occurred_at": "2026-05-16T18:30:00Z",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "payload": {
+    "booking_id": "660e8400-e29b-41d4-a716-446655440001",
+    "hotel_name": "Hotel Bogotá Plaza",
+    "check_in": "2026-06-15T14:00:00Z",
+    "check_out": "2026-06-18T11:00:00Z",
+    "total": 450000,
+    "currency": "COP"
+  }
+}
+```
+
+**Response 202 Accepted:**
+```json
+{
+  "accepted": true,
+  "event_id": "evt_01HZX9ABC123",
+  "event_type": "booking.confirmed",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Errores:**
+- `401` — `X-Internal-Token` ausente o incorrecto.
+- `422` — Envelope inválido (falta campo, tipo equivocado).
+- `500` — Falla al renderizar plantilla o enviar (la transacción se rollback-ea; el caller debe reintentar con el mismo `event_id`).
+
+**Ejemplo curl (DEV):**
+```bash
+INTERNAL_TOKEN=$(gcloud secrets versions access latest \
+  --secret=dev-travelhub-internal-notify-token \
+  --project=gen-lang-client-0930444414)
+
+curl -s -X POST \
+  "https://notification-services-ridyy4wz4q-uc.a.run.app/api/v1/notifications/events" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": "evt_smoke_'$(date +%s)'",
+    "event_type": "booking.confirmed",
+    "occurred_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "payload": {
+      "booking_id": "660e8400-e29b-41d4-a716-446655440001",
+      "hotel_name": "Hotel Bogotá Plaza",
+      "check_in": "2026-06-15T14:00:00Z",
+      "check_out": "2026-06-18T11:00:00Z",
+      "total": 450000,
+      "currency": "COP"
+    }
+  }' | jq .
+```
+
+> **Por qué HTTP y no Kafka:** los workers de booking/payment/user del equipo se diseñaron como consumidores Kafka propios por dominio (ej. payment-service publica a `payment-events` y su worker procesa). Como notification-services no es el dueño de esos topics y los workers ya están desplegados, los workers nos llaman directamente vía HTTP en vez de notification consumir Kafka. El envelope es el mismo, así que si en el futuro queremos volver a consumir, solo cambia el transporte.
 
 ---
 

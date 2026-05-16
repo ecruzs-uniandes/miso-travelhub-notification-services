@@ -1,22 +1,30 @@
 # Kafka Topics — notification-services
 
-**Última actualización:** 2026-05-01
+**Última actualización:** 2026-05-16
+
+---
+
+## ⚠ Cambio arquitectónico (2026-05-16): los topics de dominio se reemplazan por HTTP
+
+Durante el sprint, cada dominio (booking, payment, user) construyó su propio worker Kafka por su lado. Para no duplicar el consumer aquí y evitar drift de envelope, **notification-services ya NO consume `booking-events`, `payment-events` ni `user-events`**: los workers de dominio llaman vía HTTP a `POST /api/v1/notifications/events` con el **mismo envelope** que iban a publicar al broker. Ver `docs/api.md` § "POST /api/v1/notifications/events".
+
+Este documento se mantiene como **contrato del envelope** (sigue siendo la fuente de verdad de qué `event_type` existen, qué `payload` lleva cada uno y cómo se valida en Pydantic), y como referencia histórica de los topics. La tabla de roles abajo aplica solo al `notification-dlq` (que sí seguimos produciendo) y al consumer si en algún momento se reactiva.
 
 ---
 
 ## Resumen
 
-`notification-services` **consume** de 3 topics y **produce** a 1 topic (DLQ).
-No produce eventos de dominio — es exclusivamente receptor.
+`notification-services` recibe eventos vía:
+- **HTTP** (vigente): workers de dominio (booking, payment, user) llaman `POST /api/v1/notifications/events` con `X-Internal-Token`.
+- **Kafka** (deshabilitado por defecto, `KAFKA_CONSUMER_ENABLED=false`): el consumer multi-topic original sigue en `app/kafka/consumer.py` y se puede reactivar sin cambios si el equipo decide volver al transporte por broker.
+
+Y produce solo:
 
 | Rol | Topic | Particiones | Replication |
 |---|---|---|---|
-| Consumer | `booking-events` | 3 | 1 (DEV), 3 (PROD) |
-| Consumer | `payment-events` | 3 | 1 (DEV), 3 (PROD) |
-| Consumer | `user-events` | 3 | 1 (DEV), 3 (PROD) |
 | Producer (DLQ) | `notification-dlq` | 1 | 1 (DEV), 2 (PROD) |
 
-**Consumer group:** `notification-services-group`
+**Consumer group (si se reactiva):** `notification-services-group`
 
 ---
 

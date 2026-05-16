@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class InternalNotificationRequest(BaseModel):
@@ -32,3 +33,27 @@ class WelcomeRegistrationRequest(BaseModel):
 class WelcomeRegistrationResponse(BaseModel):
     notification_id: UUID
     channels_sent: list[str]
+
+
+class EventIngestionRequest(BaseModel):
+    """Envelope estándar TravelHub para eventos de notificación recibidos vía HTTP.
+
+    Mismo shape que el envelope Kafka histórico (booking-events / payment-events /
+    user-events) para que los workers de dominio (booking, payment, user) puedan
+    enviar lo que originalmente iba a publicarse al broker.
+    """
+
+    event_id: str = Field(..., description="ID único del evento (idempotencia).")
+    event_type: str = Field(
+        ..., description="Tipo de evento. Ej: booking.confirmed, payment.completed, user.welcome."
+    )
+    occurred_at: datetime
+    user_id: UUID
+    payload: dict = Field(default_factory=dict)
+
+
+class EventIngestionResponse(BaseModel):
+    accepted: bool
+    event_id: str
+    event_type: str
+    user_id: UUID

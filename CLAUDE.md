@@ -52,6 +52,26 @@ gcloud run jobs execute notification-services-migrate \
 ```
 Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
 
+### 🔁 Cambio arquitectónico 2026-05-16: HTTP en vez de Kafka para booking/payment/user
+
+Originalmente este servicio iba a consumir `booking-events`, `payment-events` y `user-events` desde Kafka (sección 10 de este doc, mantenida abajo como referencia). Durante el sprint los compañeros de booking, payment y user-services construyeron sus propios workers Kafka por su lado y nos pidieron exponer un endpoint HTTP para que ellos enrutaran lo que iban a publicar al broker.
+
+**Decisión:** se agregó `POST /api/v1/notifications/events` (server-to-server, `X-Internal-Token`) que recibe el **mismo envelope** que iba a Kafka y delega al mismo `NotificationService.process_event()` que el consumer Kafka (y `/admin/test-event`). Cero duplicación de lógica — solo cambia el transporte.
+
+- `KAFKA_CONSUMER_ENABLED=false` en DEV/PROD ahora. El consumer en `app/kafka/consumer.py` sigue intacto por si revertimos.
+- Topics `booking-events` / `payment-events` / `user-events` siguen creados en Kafka PROD pero notification ya no se suscribe.
+- `pms-sync-worker` sigue llamando `/internal` (no cambia).
+- `user-services` sigue llamando `/internal/welcome` (no cambia).
+- Nuevos callers: workers de booking, payment, user — llaman `/events`.
+- Documentación: [docs/api.md](docs/api.md) § `POST /api/v1/notifications/events`, [docs/kafka-topics.md](docs/kafka-topics.md) actualizados con el cambio.
+- Implementación: [app/api/internal.py](app/api/internal.py) (función `ingest_event`) + schema `EventIngestionRequest` en [app/schemas/internal.py](app/schemas/internal.py).
+
+URL para los workers compañeros:
+- DEV: `https://notification-services-ridyy4wz4q-uc.a.run.app/api/v1/notifications/events`
+- PROD: `https://notification-services-qhweqfkejq-uc.a.run.app/api/v1/notifications/events`
+
+Secret con el token: `dev-travelhub-internal-notify-token` (DEV) / `prod-travelhub-internal-notify-token` (PROD). Es el mismo que ya usan pms-sync-worker y user-services para `/internal*`.
+
 ### ✅ Bugs resueltos en 2026-05-13 sesión 3
 
 4. **Cloud Run traffic stuck en revisión antigua** — RESUELTO 2026-05-13. Los 3 "deploys" del 12-may (revs `00007-z6k`, `00008-vrv`, `00009-prl`) eran `gcloud run services update --update-secrets=...` que crean revisión nueva pero **no traen imagen nueva** — todos reutilizaron `sha256:7079025af...` (la imagen original de la rev `mox3dalf` del 2026-05-09). Mientras tanto el traffic seguía 100% en `mox3dalf` (Cloud Run no shifteaba auto). El código de `mox3dalf` tenía un bug en `SendGridSender` post-send: el email salía a SendGrid (status 202) pero algo del wrapping del response lanzaba excepción → `_send_channel` capturaba como `failed` → `notification_log.status=failed` y log decía `notification_send_failed`. Fix: rebuild + deploy con imagen nueva (`gcloud builds submit --tag ...`) → rev `00010-pf8` con `sha256:8ee4c44e...` + `gcloud run services update-traffic --to-revisions=notification-services-00010-pf8=100` para forzar shift. Post-fix: logs muestran solo `INFO email_sent`, sin `circuit_breaker_opened`.
@@ -475,11 +495,14 @@ Response 200: objeto preferences actualizado
 Errores: 400 (validación), 401, 403.
 ```
 
-### 7.2 Endpoint interno (NO público, solo VPC interna)
+### 7.2 Endpoints internos (NO públicos, solo VPC interna — `X-Internal-Token`)
 
 | Método | Ruta | Descripción | Caller |
 |---|---|---|---|
-| POST | `/api/v1/notifications/internal` | Disparo síncrono de notificación | `pms-sync-worker` |
+| POST | `/api/v1/notifications/internal` | Notificaciones PMS (`pms_sync_conflict|error|complete`) | `pms-sync-worker` |
+| POST | `/api/v1/notifications/internal/welcome` | Welcome incondicional post-registro | `user-services` |
+| POST | `/api/v1/notifications/events` | Ingesta de envelope estándar (reemplaza Kafka booking/payment/user). Delega a `NotificationService.process_event()`. | workers de `booking`, `payment`, `user` |
+| POST | `/api/v1/notifications/admin/test-event` | Disparo de QA (feature-flagged: `ADMIN_TEST_ENDPOINT_ENABLED`). | manual / Postman |
 
 **POST `/api/v1/notifications/internal`**
 ```
@@ -496,6 +519,25 @@ Errores: 400 (payload inválido), 500 (fallo proveedor).
 ```
 
 **Seguridad del endpoint interno:** este endpoint NO está en el OpenAPI del gateway. Solo es alcanzable desde la subnet `subnet-services` (validado por firewall + IP source check en middleware). Adicionalmente, requiere header `X-Internal-Token` con valor leído desde Secret Manager (`${PREFIX}-internal-notify-token`).
+
+**POST `/api/v1/notifications/events`** (ingesta HTTP de envelope estándar)
+
+Mismo envelope que originalmente iba a Kafka (`booking-events`, `payment-events`, `user-events`). Los workers de cada dominio llaman aquí en vez de publicar al broker. Auth y networking idéntico a `/internal`.
+
+```
+Body (envelope estándar TravelHub):
+{
+  "event_id": "string-único",            // idempotencia
+  "event_type": "booking.confirmed",     // ver tabla en docs/api.md
+  "occurred_at": "2026-05-16T18:30:00Z",
+  "user_id": "uuid",
+  "payload": { ... }                     // específico del event_type
+}
+Response 202: { accepted: true, event_id, event_type, user_id }
+Errores: 401 (token), 422 (envelope inválido), 500 (template/sender).
+```
+
+Internamente reusa `NotificationService.process_event()` — el mismo método que invoca el consumer Kafka y `/admin/test-event`. Cero duplicación.
 
 ---
 
