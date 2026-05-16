@@ -68,7 +68,7 @@ async def send_notification(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        text("SELECT viajeroId FROM reserva WHERE id = :booking_id"),
+        text('SELECT "viajeroId" FROM reserva WHERE id = :booking_id'),
         {"booking_id": body.booking_id},
     )
     row = result.first()
