@@ -15,6 +15,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
             path in EXEMPT_PATHS
             or path.endswith("/internal")
             or "/internal/" in path
+            or path.endswith("/events")
             or path.endswith("/admin/test-event")
             or path.endswith("/send-notification")
         ):
