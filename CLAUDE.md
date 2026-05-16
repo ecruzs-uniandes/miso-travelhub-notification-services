@@ -52,6 +52,21 @@ gcloud run jobs execute notification-services-migrate \
 ```
 Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
 
+### 🔁 Cambio arquitectónico 2026-05-16 (B): opt-out por defecto + fallback a `users.email`
+
+Antes el envío respetaba estrictamente `notification_preference.email_address`. Si el viajero no tenía preferencia (o tenía la fila pero con `email_address=NULL`), todo evento se marcaba `channel_skipped` y no llegaba nada — un problema operativo cuando el productor (booking/payment) creaba reservas para usuarios que jamás habían pasado por el welcome.
+
+Nuevo comportamiento: **opt-out con fallback a la tabla `users`**.
+
+- `NotificationService._resolve_user_info(pref, payload)` resuelve `(email, full_name)` así:
+  1. Si `pref.email_address` está seteado → se usa.
+  2. Si no, query directa `SELECT email, nombre FROM users WHERE id=:uid AND activo=true` (misma BD `travelhub` — notification y user-services comparten Cloud SQL).
+- Los toggles `email_enabled` / `push_enabled` ya vienen `true` por default en el modelo SQLAlchemy, así que un viajero sin fila previa recibe **todas** las notificaciones aplicables a su user_id.
+- El viajero sigue pudiendo apagar canales con `PUT /api/v1/notifications/preferences` (eso pone `email_enabled=false`) — el opt-out respeta esa decisión: si el toggle está apagado, no manda aunque haya email.
+- Si el viajero está soft-deleted (`users.activo=false`) o no existe → fallback devuelve email vacío → `channel_skipped`. Sin error.
+
+**Coupling trade-off**: notification-services queda acoplado al schema de `users` (`email`, `nombre`, `activo`). Si user-services renombra esas columnas, notification rompe. Asumido para PF.
+
 ### 🔁 Cambio arquitectónico 2026-05-16: HTTP en vez de Kafka para booking/payment/user
 
 Originalmente este servicio iba a consumir `booking-events`, `payment-events` y `user-events` desde Kafka (sección 10 de este doc, mantenida abajo como referencia). Durante el sprint los compañeros de booking, payment y user-services construyeron sus propios workers Kafka por su lado y nos pidieron exponer un endpoint HTTP para que ellos enrutaran lo que iban a publicar al broker.
