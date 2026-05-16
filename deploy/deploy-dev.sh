@@ -22,7 +22,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --min-instances=1 \
   --max-instances=3 \
   --no-cpu-throttling \
-  --set-env-vars "ENV=dev,KAFKA_CONSUMER_ENABLED=true,KAFKA_BOOTSTRAP_SERVERS=10.10.3.3:9092,JWT_ISSUER=https://auth.travelhub.app,JWT_AUDIENCE=travelhub-api,APP_URL=https://app.travelhub.app,SUPPORT_EMAIL=soporte@travelhub.app,SENDGRID_FROM_EMAIL=noreply@travelhub.app,SENDGRID_FROM_NAME=TravelHub,SENDGRID_SANDBOX=true,FCM_PROJECT_ID=${PROJECT_ID}" \
+  --set-env-vars "ENV=dev,KAFKA_CONSUMER_ENABLED=true,KAFKA_BOOTSTRAP_SERVERS=10.10.3.3:9092,JWT_ISSUER=https://auth.travelhub.app,JWT_AUDIENCE=travelhub-api,APP_URL=https://app.travelhub.app,SUPPORT_EMAIL=soporte@travelhub.app,SENDGRID_FROM_EMAIL=noreply@apitravelhub.site,SENDGRID_FROM_NAME=TravelHub,SENDGRID_SANDBOX=false,ADMIN_TEST_ENDPOINT_ENABLED=true,FCM_PROJECT_ID=${PROJECT_ID}" \
   --set-secrets "DATABASE_URL=dev-travelhub-notification-db-url:latest,SENDGRID_API_KEY=dev-travelhub-sendgrid-api-key:latest,FCM_CREDENTIALS_JSON=dev-travelhub-fcm-credentials:latest,INTERNAL_NOTIFY_TOKEN=dev-travelhub-internal-notify-token:latest" \
   --service-account "github-deploy-notification@${PROJECT_ID}.iam.gserviceaccount.com" \
   --allow-unauthenticated

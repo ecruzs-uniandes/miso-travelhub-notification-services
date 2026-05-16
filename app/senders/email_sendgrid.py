@@ -1,7 +1,7 @@
 import logging
 
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, MailSettings, SandBoxMode
 
 from app.config import settings
 from app.senders.base import NotificationSender
@@ -25,7 +25,9 @@ class SendGridSender(NotificationSender):
         )
 
         if settings.SENDGRID_SANDBOX:
-            message.mail_settings = {"sandbox_mode": {"enable": True}}
+            # Usar el objeto MailSettings del SDK (no dict): el SDK serializa
+            # con mail_settings.get() que requiere objeto custom, no dict.
+            message.mail_settings = MailSettings(sandbox_mode=SandBoxMode(enable=True))
 
         response = self._client.send(message)
 

@@ -25,6 +25,58 @@ class NotificationService:
         self.template_svc = TemplateService()
         self.pref_svc = PreferenceService(db)
 
+    async def ensure_welcome_preference(self, user_id: uuid.UUID, email: str) -> None:
+        """Upsertea la preferencia del user con email_address + email_enabled=true.
+
+        Usado en el flujo de welcome (HTTP /internal/welcome y handler Kafka
+        user.welcome): un user recién registrado no tiene preferencia, así que
+        forzamos su creación con el email del payload para que process_event
+        pueda enviarle el welcome (y cualquier evento futuro) por email.
+        """
+        pref = await self.pref_svc.get_or_create(user_id)
+        if pref.email_address != email or not pref.email_enabled:
+            pref.email_address = email
+            pref.email_enabled = True
+            pref.updated_at = datetime.now(timezone.utc)
+            await self.db.flush()
+
+    async def send_welcome_on_register(
+        self, user_id: uuid.UUID, email: str, full_name: str
+    ) -> tuple[uuid.UUID, list[str]]:
+        """Welcome incondicional (no respeta preferencias del user).
+
+        Lo invoca user-services vía HTTP /internal/welcome (alternativa síncrona
+        para pruebas / fallback). El flujo "correcto" pasa por Kafka — ver
+        handle_user_welcome en app/kafka/handlers/user.py.
+        """
+        await self.ensure_welcome_preference(user_id, email)
+
+        # event_id incluye timestamp para que reintentos tras fallos NO sean
+        # bloqueados por idempotencia (otros eventos como booking sí mantienen
+        # event_id estable porque vienen de Kafka con event_id propio).
+        ts = int(datetime.now(timezone.utc).timestamp())
+        envelope = EventEnvelope(
+            event_id=f"register_welcome_{user_id}_{ts}",
+            event_type="user.welcome",
+            occurred_at=datetime.now(timezone.utc),
+            user_id=user_id,
+            payload={"email": email, "full_name": full_name},
+        )
+        await self.process_event(envelope)
+
+        # Retornar el id de la notificación creada por process_event
+        result = await self.db.execute(
+            select(NotificationLog.notification_id, NotificationLog.channel)
+            .where(NotificationLog.event_id == envelope.event_id)
+        )
+        rows = list(result.all())
+        if not rows:
+            # Edge case: process_event no creó nada (shouldn't happen con pref forzada)
+            raise RuntimeError("welcome event processing did not produce notification log")
+        notification_id = rows[0].notification_id
+        channels_sent = [r.channel for r in rows]
+        return notification_id, channels_sent
+
     async def process_event(self, envelope: EventEnvelope) -> None:
         pref = await self.pref_svc.get_or_create(envelope.user_id)
         event_type_key = envelope.event_type.replace(".", "_")
