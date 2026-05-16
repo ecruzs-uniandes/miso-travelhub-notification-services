@@ -52,6 +52,12 @@ gcloud run jobs execute notification-services-migrate \
 ```
 Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
 
+### 🩹 Bugs PROD resueltos 2026-05-16 sesión 4
+
+7. **Tablas `notification_*` perdidas en PROD** — RESUELTO 2026-05-16. Síntoma: `/events` devolvía `HTTP 500 relation "notification_preference" does not exist"` aunque `alembic upgrade head` exit 0 (cree estar al día). Diagnóstico vía override del Cloud Run Job migrate con un Python script: confirmó que las 3 tablas (`notification_preference`, `notification`, `notification_log`) no existían pero `alembic_version_notification` tenía la fila con revision `001`. Alguien dropeó las tablas dejando la versión intacta. Fix: override del job a `sh -c "alembic stamp base && alembic upgrade head"` → resetea pointer + recrea schema. Runbook completo en `COMANDOS_UTILES.md` sección 6.X. Después restaurar el job a su comando original (`alembic upgrade head`).
+
+8. **`/events` saltaba el dispatcher** (commit `39363c5`, PR #11) — RESUELTO 2026-05-16. `ingest_event` en `app/api/internal.py` llamaba `NotificationService.process_event()` directamente, saltando los handlers registrados con `@register("user.welcome")` etc. en `app/kafka/handlers/`. Consecuencia: `user.welcome` no ejecutaba `ensure_welcome_preference()` → la preferencia del user no se poblaba con `payload.email` → no se enviaba welcome. En DEV se ocultaba porque los usuarios ya tenían preferencia preexistente; en PROD post-recreación de tablas la preferencia era NULL para todos. Fix: `ingest_event` ahora hace `handler = get_handler(envelope.event_type)` primero (mismo flujo del consumer Kafka). Si hay handler lo invoca, si no cae a `process_event()` directo.
+
 ### 🔁 Cambio arquitectónico 2026-05-16 (B): opt-out por defecto + fallback a `users.email`
 
 Antes el envío respetaba estrictamente `notification_preference.email_address`. Si el viajero no tenía preferencia (o tenía la fila pero con `email_address=NULL`), todo evento se marcaba `channel_skipped` y no llegaba nada — un problema operativo cuando el productor (booking/payment) creaba reservas para usuarios que jamás habían pasado por el welcome.
