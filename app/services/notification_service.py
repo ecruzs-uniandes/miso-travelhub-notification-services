@@ -25,21 +25,31 @@ class NotificationService:
         self.template_svc = TemplateService()
         self.pref_svc = PreferenceService(db)
 
+    async def ensure_welcome_preference(self, user_id: uuid.UUID, email: str) -> None:
+        """Upsertea la preferencia del user con email_address + email_enabled=true.
+
+        Usado en el flujo de welcome (HTTP /internal/welcome y handler Kafka
+        user.welcome): un user recién registrado no tiene preferencia, así que
+        forzamos su creación con el email del payload para que process_event
+        pueda enviarle el welcome (y cualquier evento futuro) por email.
+        """
+        pref = await self.pref_svc.get_or_create(user_id)
+        if pref.email_address != email or not pref.email_enabled:
+            pref.email_address = email
+            pref.email_enabled = True
+            pref.updated_at = datetime.now(timezone.utc)
+            await self.db.flush()
+
     async def send_welcome_on_register(
         self, user_id: uuid.UUID, email: str, full_name: str
     ) -> tuple[uuid.UUID, list[str]]:
         """Welcome incondicional (no respeta preferencias del user).
 
-        Lo invoca user-services tras un registro exitoso. Side-effect: deja la
-        preferencia poblada con email_address + email_enabled=true para que
-        cualquier evento futuro (booking, payment) le llegue por email sin que
-        el user tenga que configurar nada.
+        Lo invoca user-services vía HTTP /internal/welcome (alternativa síncrona
+        para pruebas / fallback). El flujo "correcto" pasa por Kafka — ver
+        handle_user_welcome en app/kafka/handlers/user.py.
         """
-        pref = await self.pref_svc.get_or_create(user_id)
-        pref.email_address = email
-        pref.email_enabled = True
-        pref.updated_at = datetime.now(timezone.utc)
-        await self.db.flush()
+        await self.ensure_welcome_preference(user_id, email)
 
         # event_id incluye timestamp para que reintentos tras fallos NO sean
         # bloqueados por idempotencia (otros eventos como booking sí mantienen

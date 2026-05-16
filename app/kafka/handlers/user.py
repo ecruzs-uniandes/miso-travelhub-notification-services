@@ -9,7 +9,14 @@ logger = logging.getLogger(__name__)
 
 @register("user.welcome")
 async def handle_user_welcome(envelope: EventEnvelope, svc: NotificationService) -> None:
+    """Welcome al registrarse. Auto-poblamos la preference del user con su
+    email (del payload) porque un user recién registrado no tiene preferencia.
+    Side-effect: cualquier evento futuro (booking, payment) también le llegará
+    por email sin que tenga que configurar nada."""
     logger.info("handling_user_welcome", extra={"event_id": envelope.event_id})
+    email = envelope.payload.get("email", "")
+    if email:
+        await svc.ensure_welcome_preference(envelope.user_id, email)
     await svc.process_event(envelope)
 
 
