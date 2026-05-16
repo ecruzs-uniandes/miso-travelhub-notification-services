@@ -1,12 +1,14 @@
 import logging
+import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user
 from app.database import get_db
+from app.senders.push_fcm import FCMSender
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["device"])
@@ -14,6 +16,13 @@ router = APIRouter(tags=["device"])
 class RegisterDeviceRequest(BaseModel):
     fcm_token: str = Field(..., min_length=1)
     platform: str = Field(..., min_length=1)
+
+
+class SendNotificationRequest(BaseModel):
+    user_id: uuid.UUID
+    notification_title: str = Field(..., min_length=1)
+    notification_detail: str = Field(..., min_length=1)
+    data: dict = Field(default_factory=dict)
 
 
 @router.post("/notifications/register-device")
@@ -33,7 +42,7 @@ async def register_device(
     }
 
 @router.post("/notifications/unregister-device")
-async def register_device(
+async def unregister_device(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -45,4 +54,37 @@ async def register_device(
     return {
         "status": "ok",
         "message": "Dispositivo desvinculado correctamente"
+    }
+
+@router.post("/notifications/send-notification")
+async def send_notification(
+    body: SendNotificationRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("SELECT fcm_token FROM users WHERE id = :user_id"),
+        {"user_id": body.user_id},
+    )
+    row = result.first()
+    fcm_token = row[0] if row else None
+
+    if not fcm_token:
+        raise HTTPException(
+            status_code=404,
+            detail="El usuario no tiene un dispositivo registrado",
+        )
+
+    sender = FCMSender()
+    provider_response = await sender.send(
+        recipient=fcm_token,
+        subject=body.notification_title,
+        body=body.notification_detail,
+        metadata={"data": {k: str(v) for k, v in body.data.items()}},
+    )
+
+    return {
+        "status": "ok",
+        "message": "Notificación enviada",
+        "provider_response": provider_response,
     }
