@@ -670,7 +670,7 @@ curl -sS -X POST "$NOTIF_URL" \
 | Regla | Detalle |
 |---|---|
 | **Idempotencia** | Responsabilidad del worker que llama. Cada POST a `/events` envía un email — si llamas dos veces se mandan dos correos. El `event_id` que devuelve la respuesta es generado server-side (`http_<event_type>_<uuid4>`) y se usa solo para trazar en logs, NO para dedup. |
-| **Sin preferencia** | Si el `user_id` no tiene `notification_preference`, `user.welcome` la crea automáticamente con el email del payload. Para los otros eventos, si falta preferencia o `email_enabled=false`, el envío se marca `skipped` (la fila en `notification` in-app sí se crea). |
+| **Sin preferencia (opt-out)** | Comportamiento desde 2026-05-16: si el `user_id` no tiene `notification_preference`, los defaults son `email_enabled=true` / `push_enabled=true` y el email se busca en `users.email` (notification y user-services comparten BD `travelhub`). El viajero recibe la notificación aunque jamás haya pasado por el welcome. Si quiere apagar canales, hace `PUT /preferences` con `email_enabled=false`. |
 | **Errores 5xx** | Si el render de plantilla o SendGrid fallan, la transacción se rollback y se devuelve `500`. El caller decide si reintenta (al ser POST sin idempotency key, un reintento manda otro correo si el primero llegó a salir). |
 | **Logs en Cloud Logging** | Cada envío deja al menos 2 líneas: `events_ingest_received event_type=X event_id=Y` y `email_sent` (o `notification_send_failed`). Toma el `event_id` de la respuesta HTTP para filtrar. |
 | **PII enmascarada** | Los logs nunca incluyen `email_address`, `phone_number` ni `fcm_token` en claro — solo los últimos 4 caracteres del email o un hash. |

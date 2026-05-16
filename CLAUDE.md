@@ -52,6 +52,21 @@ gcloud run jobs execute notification-services-migrate \
 ```
 Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza solo. Si quieres una versión específica: `gcloud run jobs update notification-services-migrate --image=...:<sha>`.
 
+### 🔁 Cambio arquitectónico 2026-05-16 (B): opt-out por defecto + fallback a `users.email`
+
+Antes el envío respetaba estrictamente `notification_preference.email_address`. Si el viajero no tenía preferencia (o tenía la fila pero con `email_address=NULL`), todo evento se marcaba `channel_skipped` y no llegaba nada — un problema operativo cuando el productor (booking/payment) creaba reservas para usuarios que jamás habían pasado por el welcome.
+
+Nuevo comportamiento: **opt-out con fallback a la tabla `users`**.
+
+- `NotificationService._resolve_user_info(pref, payload)` resuelve `(email, full_name)` así:
+  1. Si `pref.email_address` está seteado → se usa.
+  2. Si no, query directa `SELECT email, nombre FROM users WHERE id=:uid AND activo=true` (misma BD `travelhub` — notification y user-services comparten Cloud SQL).
+- Los toggles `email_enabled` / `push_enabled` ya vienen `true` por default en el modelo SQLAlchemy, así que un viajero sin fila previa recibe **todas** las notificaciones aplicables a su user_id.
+- El viajero sigue pudiendo apagar canales con `PUT /api/v1/notifications/preferences` (eso pone `email_enabled=false`) — el opt-out respeta esa decisión: si el toggle está apagado, no manda aunque haya email.
+- Si el viajero está soft-deleted (`users.activo=false`) o no existe → fallback devuelve email vacío → `channel_skipped`. Sin error.
+
+**Coupling trade-off**: notification-services queda acoplado al schema de `users` (`email`, `nombre`, `activo`). Si user-services renombra esas columnas, notification rompe. Asumido para PF.
+
 ### 🔁 Cambio arquitectónico 2026-05-16: HTTP en vez de Kafka para booking/payment/user
 
 Originalmente este servicio iba a consumir `booking-events`, `payment-events` y `user-events` desde Kafka (sección 10 de este doc, mantenida abajo como referencia). Durante el sprint los compañeros de booking, payment y user-services construyeron sus propios workers Kafka por su lado y nos pidieron exponer un endpoint HTTP para que ellos enrutaran lo que iban a publicar al broker.
@@ -314,7 +329,7 @@ CREATE TABLE notification_preference (
     push_enabled       BOOLEAN NOT NULL DEFAULT TRUE,
     sms_enabled        BOOLEAN NOT NULL DEFAULT FALSE,
     whatsapp_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-    email_address      VARCHAR(255),       -- redundante con user-services pero evita join entre dominios
+    email_address      VARCHAR(255),       -- copia local; NULL → fallback automático a users.email (opt-out 2026-05-16)
     phone_number       VARCHAR(20),
     fcm_token          VARCHAR(500),       -- token de push del dispositivo
     locale             VARCHAR(10) NOT NULL DEFAULT 'es',
@@ -369,7 +384,7 @@ CREATE INDEX idx_notification_log_event ON notification_log(event_id);
 
 ### Notas sobre el modelo
 
-- `notification_preference.email_address`, `phone_number`, `fcm_token` se replican aquí (no se hace join contra `user-services`). Se actualizan vía evento `user.profile_updated`.
+- `notification_preference.email_address`, `phone_number`, `fcm_token` son la **fuente preferida**. Si `email_address` está NULL, `NotificationService._resolve_user_info()` hace `SELECT email, nombre FROM users WHERE id=:uid AND activo=true` contra la misma BD `travelhub` (notification y user-services comparten Cloud SQL) — opt-out introducido 2026-05-16. El viajero puede pisar el valor con `PUT /api/v1/notifications/preferences` o apagar canales con `email_enabled=false`.
 - `notification_log.event_id + channel` UNIQUE garantiza idempotencia: si el mismo evento llega dos veces a Kafka, se intenta INSERT y se hace `ON CONFLICT DO NOTHING` → skip.
 - `notification.metadata JSONB` guarda contexto del evento original (booking_id, payment_id, hotel_id, etc.) para que el frontend pueda hacer deep-linking.
 
@@ -630,7 +645,8 @@ TOPICS = ["booking-events", "payment-events", "user-events"]
 2. Deserializar a `EventEnvelope`. Si falla → DLQ (`notification-dlq`) + log error + commit.
 3. Buscar handler en dispatcher por `event_type`. Si no existe → log warning + commit (no DLQ).
 4. Ejecutar handler:
-   - Cargar preferencias del usuario.
+   - Cargar preferencias del usuario (`get_or_create`). Si la fila no existe se crea con defaults (`email_enabled=true`, `push_enabled=true`).
+   - Resolver email + nombre efectivos: si `pref.email_address` está NULL, fallback a `users.email`/`users.nombre` (opt-out 2026-05-16). Si tampoco existe el user (soft-delete o id desconocido) → `channel_skipped` silencioso.
    - Renderizar plantilla(s) según canales habilitados.
    - Insertar fila en `notification` + `notification_log` (con `ON CONFLICT DO NOTHING` por `event_id + channel`).
    - Si la fila ya existía (conflict) → log + commit (idempotente, ya se procesó).
@@ -1127,7 +1143,7 @@ Estos puntos requieren coordinación con teammates antes de cerrar el sprint:
 
 1. **`booking-services`** (Andrés/Pablo/Omar): debe publicar a `booking-events` con el envelope estándar. Eventos: `booking.confirmed`, `booking.cancelled`, `booking.reminder`.
 2. **`payments-services`** (Andrés/Pablo/Omar): debe publicar a `payment-events`. Eventos: `payment.completed`, `payment.failed`.
-3. **`user-services`** (Edwin): hoy NO publica a Kafka. Hay que agregarle producer para `user.welcome`, `user.password_reset`, `user.email_verification`. **Esto está fuera del scope de este servicio pero es prerequisito para que las notificaciones de usuario funcionen.**
+3. **`user-services`** (Edwin): integra vía **HTTP** (no Kafka). Llama `POST /api/v1/notifications/internal/welcome` tras un register exitoso (commit `3b34978`). Para `password_reset` / `email_verification` puede llamar `POST /api/v1/notifications/events` con el envelope estándar. Desde 2026-05-16 con opt-out + fallback a `users.email`, las notificaciones de booking/payment también llegan aunque user-services NO haya gatillado el welcome — la dependencia ya no es bloqueante.
 4. **VM Kafka (`travelhub-kafka`)**: agregar `booking-events`, `payment-events`, `user-events`, `notification-dlq` al `kafka-init` container o crearlos manualmente vía IAP tunnel.
 5. **API Gateway**: agregar las rutas `/api/v1/notifications/*` al `openapi-spec.yaml` y redesplegar.
 6. **`pms-sync-worker`**: ya espera el endpoint `POST /api/v1/notifications/internal`. Asegurar que la URL configurada en su deploy apunte a `notification-services`.

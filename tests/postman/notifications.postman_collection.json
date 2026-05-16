@@ -37,8 +37,12 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/health",
-              "host": ["{{base_url}}"],
-              "path": ["health"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
             }
           }
         },
@@ -49,8 +53,12 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/ready",
-              "host": ["{{base_url}}"],
-              "path": ["ready"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ready"
+              ]
             }
           }
         }
@@ -65,8 +73,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -74,8 +88,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/internal",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "internal"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "internal"
+              ]
             }
           }
         },
@@ -84,8 +105,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -93,8 +120,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/internal",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "internal"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "internal"
+              ]
             }
           }
         },
@@ -103,8 +137,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -112,8 +152,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/internal",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "internal"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "internal"
+              ]
             }
           }
         }
@@ -128,8 +175,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -137,8 +190,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -147,8 +208,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -156,8 +223,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -166,8 +241,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -175,8 +256,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -185,8 +274,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -194,8 +289,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -204,8 +307,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -213,8 +322,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -223,8 +340,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -232,8 +355,16 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
           }
         },
@@ -242,8 +373,14 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "X-Internal-Token", "value": "{{internal_token}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -251,9 +388,254 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/notifications/admin/test-event",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "notifications", "admin", "test-event"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "admin",
+                "test-event"
+              ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker Events HTTP (/events)",
+      "description": "Endpoint que reemplaza el consumo Kafka. Server-to-server (workers de booking/payment/user). Auth: X-Internal-Token. Opt-out: si el user no tiene preferencia, el servicio resuelve email desde users.email.",
+      "item": [
+        {
+          "name": "user.welcome",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"user.welcome\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"email\": \"viajero@ejemplo.com\",\n    \"full_name\": \"Maria Perez\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para user.welcome. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "user.password_reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"user.password_reset\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"email\": \"viajero@ejemplo.com\",\n    \"full_name\": \"Maria Perez\",\n    \"reset_token\": \"abc123\",\n    \"reset_url\": \"https://app.travelhub.app/reset-password?token=abc123\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para user.password_reset. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "booking.confirmed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.confirmed\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n    \"hotel_name\": \"Hotel Bogota Plaza\",\n    \"check_in\": \"2026-06-15T14:00:00Z\",\n    \"check_out\": \"2026-06-18T11:00:00Z\",\n    \"total\": 450000,\n    \"currency\": \"COP\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para booking.confirmed. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "booking.cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.cancelled\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n    \"hotel_name\": \"Hotel Bogota Plaza\",\n    \"check_in\": \"2026-06-15T14:00:00Z\",\n    \"check_out\": \"2026-06-18T11:00:00Z\",\n    \"reason\": \"Cancelada por el viajero\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para booking.cancelled. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "booking.reminder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"booking.reminder\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n    \"hotel_name\": \"Hotel Bogota Plaza\",\n    \"check_in\": \"2026-06-15T14:00:00Z\",\n    \"check_out\": \"2026-06-18T11:00:00Z\",\n    \"days_until\": 3\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para booking.reminder. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "payment.completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"payment.completed\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"payment_id\": \"770e8400-e29b-41d4-a716-446655440002\",\n    \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n    \"amount\": 450000,\n    \"currency\": \"COP\",\n    \"provider\": \"stripe\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para payment.completed. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
+          }
+        },
+        {
+          "name": "payment.failed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_notify_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"payment.failed\",\n  \"user_id\": \"{{notification_user_id}}\",\n  \"payload\": {\n    \"payment_id\": \"770e8400-e29b-41d4-a716-446655440003\",\n    \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n    \"amount\": 450000,\n    \"currency\": \"COP\",\n    \"reason\": \"Tarjeta declinada por el banco emisor\"\n  }\n}"
+            },
+            "description": "Ingesta HTTP /events para payment.failed. Body simplificado: event_type/user_id/payload. event_id y occurred_at se generan server-side."
           }
         }
       ]

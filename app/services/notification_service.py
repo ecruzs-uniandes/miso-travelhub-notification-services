@@ -3,7 +3,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -81,12 +81,18 @@ class NotificationService:
         pref = await self.pref_svc.get_or_create(envelope.user_id)
         event_type_key = envelope.event_type.replace(".", "_")
 
-        channels = self._enabled_channels(pref)
+        effective_email, effective_full_name = await self._resolve_user_info(
+            pref, envelope.payload
+        )
+        channels = self._enabled_channels(pref, effective_email)
         if not channels:
-            logger.info("no_channels_enabled", extra={"user_id": str(envelope.user_id)})
+            logger.info(
+                "no_channels_enabled",
+                extra={"user_id": str(envelope.user_id)},
+            )
             return
 
-        context = self._build_context(pref, envelope)
+        context = self._build_context(envelope, effective_email, effective_full_name)
         title, body = self._render_title_body(event_type_key, context)
 
         notification = Notification(
@@ -107,6 +113,7 @@ class NotificationService:
                 event_type_key=event_type_key,
                 context=context,
                 pref=pref,
+                effective_email=effective_email,
             )
 
     async def send_internal(
@@ -116,8 +123,10 @@ class NotificationService:
         event_type_key = request.type
         event_id = f"internal_{request.type}_{request.hotel_id}_{uuid.uuid4().hex[:8]}"
 
+        effective_email, effective_full_name = await self._resolve_user_info(pref, {})
+
         context = {
-            "user": {"full_name": "", "email": pref.email_address or ""},
+            "user": {"full_name": effective_full_name, "email": effective_email or ""},
             "event": {"occurred_at_human": datetime.now(timezone.utc).strftime("%d de %B de %Y")},
             "payload": {**request.details, "hotel_id": str(request.hotel_id)},
             "links": {"app_url": settings.APP_URL, "support_email": settings.SUPPORT_EMAIL},
@@ -136,7 +145,7 @@ class NotificationService:
         await self.db.flush()
 
         channels_sent = []
-        if pref.email_enabled and pref.email_address:
+        if pref.email_enabled and effective_email:
             await self._send_channel(
                 notification=notification,
                 event_id=event_id,
@@ -144,25 +153,76 @@ class NotificationService:
                 event_type_key=event_type_key,
                 context=context,
                 pref=pref,
+                effective_email=effective_email,
             )
             channels_sent.append("email")
 
         return notification.id, channels_sent
 
-    def _enabled_channels(self, pref: NotificationPreference) -> list[str]:
+    async def _resolve_user_info(
+        self, pref: NotificationPreference, payload: dict
+    ) -> tuple[str | None, str]:
+        """Resuelve email + full_name efectivos para el envío.
+
+        Precedencia (opt-out):
+        1. `notification_preference.email_address` si está seteado.
+        2. Fallback: `users.email` (misma BD `travelhub`, columna gestionada por
+           user-services). Solo se consulta si la preferencia no tiene email,
+           para evitar un SELECT extra cuando el usuario ya configuró el suyo.
+
+        Para `full_name`: prioriza `payload.full_name` (lo trae el productor en
+        `user.welcome`); si no, cae al `users.nombre`.
+        """
+        email = pref.email_address or None
+        full_name = (payload or {}).get("full_name", "")
+
+        if email and full_name:
+            return email, full_name
+
+        # Query directa a `users` (tabla owned por user-services, misma BD).
+        # Si la tabla no existe (tests con SQLite in-memory) o la query falla,
+        # retornamos lo que tengamos sin romper el flujo.
+        try:
+            result = await self.db.execute(
+                text("SELECT email, nombre FROM users WHERE id = :uid AND activo = true"),
+                {"uid": str(pref.user_id)},
+            )
+            row = result.first()
+            if row:
+                if not email:
+                    email = row.email
+                if not full_name:
+                    full_name = row.nombre
+        except Exception as exc:
+            logger.debug(
+                "user_lookup_fallback_failed user_id=%s error=%s",
+                str(pref.user_id),
+                str(exc),
+            )
+
+        return email, full_name
+
+    def _enabled_channels(
+        self, pref: NotificationPreference, effective_email: str | None
+    ) -> list[str]:
         channels = []
-        if pref.email_enabled and pref.email_address:
+        if pref.email_enabled and effective_email:
             channels.append("email")
         if pref.push_enabled and pref.fcm_token:
             channels.append("push")
         return channels
 
-    def _build_context(self, pref: NotificationPreference, envelope: EventEnvelope) -> dict:
+    def _build_context(
+        self,
+        envelope: EventEnvelope,
+        effective_email: str | None,
+        effective_full_name: str,
+    ) -> dict:
         occurred = envelope.occurred_at
         return {
             "user": {
-                "full_name": envelope.payload.get("full_name", ""),
-                "email": pref.email_address or "",
+                "full_name": effective_full_name,
+                "email": effective_email or "",
             },
             "event": {
                 "occurred_at_human": occurred.strftime("%-d de %B de %Y, %-I:%M %p"),
@@ -205,6 +265,7 @@ class NotificationService:
         event_type_key: str,
         context: dict,
         pref: NotificationPreference,
+        effective_email: str | None = None,
     ) -> None:
         template_code = f"{event_type_key}.{channel}"
 
@@ -233,7 +294,7 @@ class NotificationService:
         self.db.add(log_entry)
         await self.db.flush()
 
-        recipient = pref.email_address if channel == "email" else (pref.fcm_token or "")
+        recipient = (effective_email or pref.email_address or "") if channel == "email" else (pref.fcm_token or "")
         subject = notification.title
 
         try:
