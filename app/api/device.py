@@ -1,5 +1,6 @@
 import logging
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -19,11 +20,16 @@ class RegisterDeviceRequest(BaseModel):
 
 
 class SendNotificationRequest(BaseModel):
-    user_id: uuid.UUID
-    notification_title: str = Field(..., min_length=1)
-    notification_detail: str = Field(..., min_length=1)
-    data: dict = Field(default_factory=dict)
+    booking_id: uuid.UUID
+    status: Literal["PAID", "CONFIRMED", "CANCELED", "REFUNDED"]
 
+
+STATUS_LABELS = {
+    "PAID": "PAGADA",
+    "CONFIRMED": "CONFIRMADA",
+    "CANCELED": "CANCELADA",
+    "REFUNDED": "REEMBOLSADA",
+}
 
 @router.post("/notifications/register-device")
 async def register_device(
@@ -63,8 +69,21 @@ async def send_notification(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
+        text("SELECT viajeroId FROM reserva WHERE id = :booking_id"),
+        {"booking_id": body.booking_id},
+    )
+    row = result.first()
+    viajero_id = row[0] if row else None
+
+    if not viajero_id:
+        raise HTTPException(
+            status_code=404,
+            detail="La reserva no existe",
+        )
+
+    result = await db.execute(
         text("SELECT fcm_token FROM users WHERE id = :user_id"),
-        {"user_id": body.user_id},
+        {"user_id": viajero_id},
     )
     row = result.first()
     fcm_token = row[0] if row else None
@@ -75,16 +94,24 @@ async def send_notification(
             detail="El usuario no tiene un dispositivo registrado",
         )
 
+    status_label = STATUS_LABELS[body.status]
+    notification_detail = f"Cambio de estado en tu reserva: {status_label}"
+
     sender = FCMSender()
     provider_response = await sender.send(
         recipient=fcm_token,
-        subject=body.notification_title,
-        body=body.notification_detail,
-        metadata={"data": {k: str(v) for k, v in body.data.items()}},
+        subject="TravelHub",
+        body=notification_detail,
+        metadata={"data": {"booking_id": str(body.booking_id)}},
+    )
+
+    sent_ok = (
+        provider_response.get("status") != "skipped"
+        and "message_id" in provider_response
     )
 
     return {
-        "status": "ok",
-        "message": "Notificación enviada",
+        "status": "ok" if sent_ok else "skipped",
+        "message": "Notificación enviada" if sent_ok else "Notificación omitida",
         "provider_response": provider_response,
     }
