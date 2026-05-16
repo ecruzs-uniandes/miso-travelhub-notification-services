@@ -254,9 +254,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_welcome_$(date +%s)\",
     \"event_type\": \"user.welcome\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": { \"email\": \"viajero@ejemplo.com\", \"full_name\": \"María Pérez\" }
   }"
@@ -266,9 +264,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_booking_$(date +%s)\",
     \"event_type\": \"booking.confirmed\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
@@ -292,14 +288,15 @@ Para PROD usar:
 ### 3. Validar que el email salió
 
 ```bash
-# Buscar el event_id en logs de Cloud Logging
+# Buscar los logs recientes en Cloud Logging. El event_id se genera server-side
+# con formato http_<event_type>_<uuid4> — se devuelve en la respuesta HTTP de /events.
 gcloud logging read \
-  'resource.type=cloud_run_revision AND resource.labels.service_name=notification-services AND textPayload:"evt_booking_"' \
+  'resource.type=cloud_run_revision AND resource.labels.service_name=notification-services AND textPayload:"events_ingest_received"' \
   --project=gen-lang-client-0930444414 --limit=10 --freshness=5m --order=desc \
   --format='value(timestamp,textPayload)'
 
 # Resultado esperado (2 líneas por evento):
-# ... events_ingest_received event_type=booking.confirmed event_id=evt_booking_...
+# ... events_ingest_received event_type=booking.confirmed event_id=http_booking_confirmed_<uuid>
 # ... email_sent
 ```
 

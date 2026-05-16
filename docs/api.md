@@ -326,15 +326,15 @@ Internamente delega al mismo `process_event()` que usa el consumer Kafka y `/adm
 X-Internal-Token: <valor de secret {prefix}-internal-notify-token>
 ```
 
-**Body (envelope estándar TravelHub):**
+**Body (3 campos):**
 
 | Campo | Tipo | Requerido | Descripción |
 |---|---|---|---|
-| `event_id` | string | ✅ | ID único del evento. Idempotencia: mismo `event_id+channel` no reenvía. |
 | `event_type` | string | ✅ | Tipo de evento. Lista cerrada — ver tabla abajo. |
-| `occurred_at` | datetime ISO-8601 | ✅ | Cuándo ocurrió el evento de dominio (UTC). |
 | `user_id` | UUID | ✅ | Destinatario. Debe existir en `notification_preference` (o se autoupserts en `user.welcome`). |
 | `payload` | object | ✅ | Campos específicos del `event_type` — ver schemas Pydantic. |
+
+> `event_id` y `occurred_at` los genera el servicio internamente (`event_id` = `http_<event_type>_<uuid>`, `occurred_at` = `now()` UTC). Se devuelven en la respuesta para trazar en logs. La deduplicación / idempotencia es responsabilidad del worker emisor: si el mismo evento se POSTea dos veces, se envían dos correos.
 
 **`event_type` soportados:**
 
@@ -353,9 +353,7 @@ Un `event_type` no listado responde 202 igualmente, pero el dispatcher loguea `u
 **Body ejemplo:**
 ```json
 {
-  "event_id": "evt_01HZX9ABC123",
   "event_type": "booking.confirmed",
-  "occurred_at": "2026-05-16T18:30:00Z",
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
   "payload": {
     "booking_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -372,16 +370,18 @@ Un `event_type` no listado responde 202 igualmente, pero el dispatcher loguea `u
 ```json
 {
   "accepted": true,
-  "event_id": "evt_01HZX9ABC123",
+  "event_id": "http_booking_confirmed_5d7e0a8c19f24d2b9a3b8f3a1c0d8e7f",
   "event_type": "booking.confirmed",
   "user_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
+`event_id` se genera server-side con el formato `http_<event_type>_<uuid4>`. Úsalo para trazar el envío en Cloud Logging si necesitas debug.
+
 **Errores:**
 - `401` — `X-Internal-Token` ausente o incorrecto.
 - `422` — Envelope inválido (falta campo, tipo equivocado).
-- `500` — Falla al renderizar plantilla o enviar (la transacción se rollback-ea; el caller debe reintentar con el mismo `event_id`).
+- `500` — Falla al renderizar plantilla o enviar (la transacción se rollback-ea). El caller decide si reintenta — un reintento genera otro correo si el primero llegó a salir, así que conviene chequear primero el `event_id` de la respuesta en logs.
 
 **Ejemplo curl (DEV):**
 ```bash
@@ -394,9 +394,7 @@ curl -s -X POST \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "event_id": "evt_smoke_'$(date +%s)'",
     "event_type": "booking.confirmed",
-    "occurred_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "payload": {
       "booking_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -444,9 +442,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_welcome_$(date +%s)\",
     \"event_type\": \"user.welcome\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"email\": \"viajero@ejemplo.com\",
@@ -477,9 +473,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_pwdreset_$(date +%s)\",
     \"event_type\": \"user.password_reset\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"email\": \"viajero@ejemplo.com\",
@@ -514,9 +508,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_booking_confirmed_$(date +%s)\",
     \"event_type\": \"booking.confirmed\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
@@ -552,9 +544,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_booking_cancelled_$(date +%s)\",
     \"event_type\": \"booking.cancelled\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
@@ -589,9 +579,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_booking_reminder_$(date +%s)\",
     \"event_type\": \"booking.reminder\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
@@ -626,9 +614,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_payment_completed_$(date +%s)\",
     \"event_type\": \"payment.completed\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"payment_id\": \"770e8400-e29b-41d4-a716-446655440002\",
@@ -663,9 +649,7 @@ curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event_id\": \"evt_payment_failed_$(date +%s)\",
     \"event_type\": \"payment.failed\",
-    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"user_id\": \"$USER_ID\",
     \"payload\": {
       \"payment_id\": \"770e8400-e29b-41d4-a716-446655440003\",
@@ -685,10 +669,10 @@ curl -sS -X POST "$NOTIF_URL" \
 
 | Regla | Detalle |
 |---|---|
-| **Idempotencia** | `UNIQUE(event_id, channel)` en `notification_log`. Reintentar con el **mismo** `event_id` es seguro: la segunda vez se ignora con status `skipped`. Si quieres forzar un reenvío, usa un `event_id` nuevo. |
+| **Idempotencia** | Responsabilidad del worker que llama. Cada POST a `/events` envía un email — si llamas dos veces se mandan dos correos. El `event_id` que devuelve la respuesta es generado server-side (`http_<event_type>_<uuid4>`) y se usa solo para trazar en logs, NO para dedup. |
 | **Sin preferencia** | Si el `user_id` no tiene `notification_preference`, `user.welcome` la crea automáticamente con el email del payload. Para los otros eventos, si falta preferencia o `email_enabled=false`, el envío se marca `skipped` (la fila en `notification` in-app sí se crea). |
-| **Errores 5xx** | Si el render de plantilla o SendGrid fallan, la transacción se rollback y se devuelve `500`. El caller debe reintentar con el mismo `event_id`. |
-| **Logs en Cloud Logging** | Cada envío deja al menos 2 líneas: `events_ingest_received event_type=X event_id=Y` y `email_sent` (o `notification_send_failed`). Filtra por `event_id` para trazar punto a punto. |
+| **Errores 5xx** | Si el render de plantilla o SendGrid fallan, la transacción se rollback y se devuelve `500`. El caller decide si reintenta (al ser POST sin idempotency key, un reintento manda otro correo si el primero llegó a salir). |
+| **Logs en Cloud Logging** | Cada envío deja al menos 2 líneas: `events_ingest_received event_type=X event_id=Y` y `email_sent` (o `notification_send_failed`). Toma el `event_id` de la respuesta HTTP para filtrar. |
 | **PII enmascarada** | Los logs nunca incluyen `email_address`, `phone_number` ni `fcm_token` en claro — solo los últimos 4 caracteres del email o un hash. |
 
 #### Validación E2E confirmada (smoke 2026-05-16)
@@ -754,7 +738,7 @@ Readiness probe. Verifica conectividad a BD y estado del consumer Kafka.
 ## Notas de implementación
 
 ### Idempotencia
-Cada envío se registra en `notification_log` con `(event_id, channel)` como clave única. Si el mismo `event_id` llega dos veces (redelivery Kafka), el segundo intento se ignora silenciosamente (`status=skipped`).
+Cada envío se registra en `notification_log` con `(event_id, channel)` como clave única. Para el path HTTP (`/events`), el `event_id` lo genera el servicio con un UUID nuevo por request, así que cada POST resulta en una fila nueva — la dedup queda del lado del worker emisor. Para el path Kafka (deshabilitado por defecto desde 2026-05-16, pero el código sigue ahí) y para `/internal`+`/internal/welcome`, el `event_id` lo controla el productor y la unicidad sí actúa como guard.
 
 ### Plantillas
 Los cuerpos de los emails se renderizan con Jinja2. El texto plano se usa como `body` en la notificación in-app. El HTML va como cuerpo del email. Ambos están en `app/templates/`.

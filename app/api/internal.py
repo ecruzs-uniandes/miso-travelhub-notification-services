@@ -1,4 +1,6 @@
 import logging
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,17 +108,19 @@ async def ingest_event(
     db: AsyncSession = Depends(get_db),
 ):
     """Reemplaza el flujo Kafka booking-events / payment-events / user-events:
-    los workers de cada dominio (booking, payment, user) publican aquí vía HTTP
-    el mismo envelope que iba al broker. Internamente se delega al mismo
+    los workers de cada dominio (booking, payment, user) llaman aquí con
+    `event_type`, `user_id` y `payload`. Internamente se delega al mismo
     process_event() que usa el consumer Kafka y /admin/test-event.
 
+    `event_id` y `occurred_at` se generan en este servicio. La idempotencia
+    de los eventos de dominio queda a cargo del worker emisor.
+
     Auth: header `X-Internal-Token` (mismo secreto que /internal y /internal/welcome).
-    Idempotencia: por (event_id, channel) en notification_log.
     """
     envelope = EventEnvelope(
-        event_id=request.event_id,
+        event_id=f"http_{request.event_type.replace('.', '_')}_{uuid.uuid4().hex}",
         event_type=request.event_type,
-        occurred_at=request.occurred_at,
+        occurred_at=datetime.now(timezone.utc),
         user_id=request.user_id,
         payload=request.payload,
     )

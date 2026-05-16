@@ -56,7 +56,7 @@ Si actualizas la imagen del servicio, el job usa `:latest` así que se actualiza
 
 Originalmente este servicio iba a consumir `booking-events`, `payment-events` y `user-events` desde Kafka (sección 10 de este doc, mantenida abajo como referencia). Durante el sprint los compañeros de booking, payment y user-services construyeron sus propios workers Kafka por su lado y nos pidieron exponer un endpoint HTTP para que ellos enrutaran lo que iban a publicar al broker.
 
-**Decisión:** se agregó `POST /api/v1/notifications/events` (server-to-server, `X-Internal-Token`) que recibe el **mismo envelope** que iba a Kafka y delega al mismo `NotificationService.process_event()` que el consumer Kafka (y `/admin/test-event`). Cero duplicación de lógica — solo cambia el transporte.
+**Decisión:** se agregó `POST /api/v1/notifications/events` (server-to-server, `X-Internal-Token`) que recibe sólo `event_type`, `user_id` y `payload`, y delega al mismo `NotificationService.process_event()` que el consumer Kafka (y `/admin/test-event`). `event_id` y `occurred_at` se generan internamente — la idempotencia queda del lado del worker emisor, no del notificador. Cero duplicación de lógica.
 
 - `KAFKA_CONSUMER_ENABLED=false` en DEV/PROD ahora. El consumer en `app/kafka/consumer.py` sigue intacto por si revertimos.
 - Topics `booking-events` / `payment-events` / `user-events` siguen creados en Kafka PROD pero notification ya no se suscribe.
@@ -520,24 +520,23 @@ Errores: 400 (payload inválido), 500 (fallo proveedor).
 
 **Seguridad del endpoint interno:** este endpoint NO está en el OpenAPI del gateway. Solo es alcanzable desde la subnet `subnet-services` (validado por firewall + IP source check en middleware). Adicionalmente, requiere header `X-Internal-Token` con valor leído desde Secret Manager (`${PREFIX}-internal-notify-token`).
 
-**POST `/api/v1/notifications/events`** (ingesta HTTP de envelope estándar)
+**POST `/api/v1/notifications/events`** (ingesta HTTP simplificada)
 
-Mismo envelope que originalmente iba a Kafka (`booking-events`, `payment-events`, `user-events`). Los workers de cada dominio llaman aquí en vez de publicar al broker. Auth y networking idéntico a `/internal`.
+Los workers de cada dominio llaman aquí con `event_type`, `user_id` y `payload`. Auth y networking idéntico a `/internal`. La dedup queda del lado del worker — cada POST produce un envío.
 
 ```
-Body (envelope estándar TravelHub):
+Body (3 campos):
 {
-  "event_id": "string-único",            // idempotencia
   "event_type": "booking.confirmed",     // ver tabla en docs/api.md
-  "occurred_at": "2026-05-16T18:30:00Z",
   "user_id": "uuid",
   "payload": { ... }                     // específico del event_type
 }
-Response 202: { accepted: true, event_id, event_type, user_id }
+Response 202: { accepted, event_id, event_type, user_id }
+  event_id = generado server-side ("http_<event_type>_<uuid4>"), solo para trazar en logs.
 Errores: 401 (token), 422 (envelope inválido), 500 (template/sender).
 ```
 
-Internamente reusa `NotificationService.process_event()` — el mismo método que invoca el consumer Kafka y `/admin/test-event`. Cero duplicación.
+Internamente construye un `EventEnvelope` con `event_id` (UUID) y `occurred_at` (now UTC) generados, y reusa `NotificationService.process_event()` — el mismo método que invoca el consumer Kafka y `/admin/test-event`. Cero duplicación.
 
 ---
 
