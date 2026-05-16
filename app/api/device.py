@@ -65,7 +65,6 @@ async def unregister_device(
 @router.post("/notifications/send-notification")
 async def send_notification(
     body: SendNotificationRequest,
-    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
