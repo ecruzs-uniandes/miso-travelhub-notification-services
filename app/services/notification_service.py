@@ -41,8 +41,12 @@ class NotificationService:
         pref.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
 
+        # event_id incluye timestamp para que reintentos tras fallos NO sean
+        # bloqueados por idempotencia (otros eventos como booking sí mantienen
+        # event_id estable porque vienen de Kafka con event_id propio).
+        ts = int(datetime.now(timezone.utc).timestamp())
         envelope = EventEnvelope(
-            event_id=f"register_welcome_{user_id}",
+            event_id=f"register_welcome_{user_id}_{ts}",
             event_type="user.welcome",
             occurred_at=datetime.now(timezone.utc),
             user_id=user_id,
