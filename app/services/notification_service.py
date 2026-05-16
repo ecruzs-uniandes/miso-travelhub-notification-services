@@ -25,6 +25,44 @@ class NotificationService:
         self.template_svc = TemplateService()
         self.pref_svc = PreferenceService(db)
 
+    async def send_welcome_on_register(
+        self, user_id: uuid.UUID, email: str, full_name: str
+    ) -> tuple[uuid.UUID, list[str]]:
+        """Welcome incondicional (no respeta preferencias del user).
+
+        Lo invoca user-services tras un registro exitoso. Side-effect: deja la
+        preferencia poblada con email_address + email_enabled=true para que
+        cualquier evento futuro (booking, payment) le llegue por email sin que
+        el user tenga que configurar nada.
+        """
+        pref = await self.pref_svc.get_or_create(user_id)
+        pref.email_address = email
+        pref.email_enabled = True
+        pref.updated_at = datetime.now(timezone.utc)
+        await self.db.flush()
+
+        envelope = EventEnvelope(
+            event_id=f"register_welcome_{user_id}",
+            event_type="user.welcome",
+            occurred_at=datetime.now(timezone.utc),
+            user_id=user_id,
+            payload={"email": email, "full_name": full_name},
+        )
+        await self.process_event(envelope)
+
+        # Retornar el id de la notificación creada por process_event
+        result = await self.db.execute(
+            select(NotificationLog.notification_id, NotificationLog.channel)
+            .where(NotificationLog.event_id == envelope.event_id)
+        )
+        rows = list(result.all())
+        if not rows:
+            # Edge case: process_event no creó nada (shouldn't happen con pref forzada)
+            raise RuntimeError("welcome event processing did not produce notification log")
+        notification_id = rows[0].notification_id
+        channels_sent = [r.channel for r in rows]
+        return notification_id, channels_sent
+
     async def process_event(self, envelope: EventEnvelope) -> None:
         pref = await self.pref_svc.get_or_create(envelope.user_id)
         event_type_key = envelope.event_type.replace(".", "_")
