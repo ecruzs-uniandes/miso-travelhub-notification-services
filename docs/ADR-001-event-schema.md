@@ -1,9 +1,24 @@
 # ADR-001: Schema de eventos Kafka (Envelope estándar)
 
-**Estado:** Aceptado
+**Estado:** Aceptado (vigente) · El envelope se reusa en HTTP — ver "Adenda 2026-05-16" abajo.
 **Fecha:** 2026-04-20
 **Autores:** Edwin Cruz Silva (Grupo 9)
 **Revisado por:** Grupo 9 — MISW4501/4502 Uniandes
+
+---
+
+## Adenda 2026-05-16: el envelope ahora viaja por HTTP, no Kafka
+
+Durante el sprint los compañeros de booking, payment y user-services construyeron sus propios workers Kafka por dominio y nos pidieron exponer un endpoint HTTP que recibiera **el mismo envelope** que iban a publicar al broker. Para no duplicar la lógica de procesamiento (renderizado, idempotencia, plantillas), se agregó `POST /api/v1/notifications/events` que recibe `{event_type, user_id, payload}` y delega al mismo `NotificationService.process_event()` (vía el dispatcher de `app/kafka/dispatcher.py`) que invocaba el consumer Kafka.
+
+Cambios respecto al envelope original:
+- **`event_id` y `occurred_at` se generan server-side** (`event_id = http_<event_type>_<uuid4>`, `occurred_at = now()` UTC). Antes los publicaba el productor para garantizar idempotencia cross-redelivery; ahora la idempotencia es responsabilidad del worker emisor — cada POST envía un correo.
+- **Campos requeridos en el body**: `event_type`, `user_id`, `payload`. Los payloads por `event_type` siguen iguales a los Pydantic schemas declarados en este ADR (ver § Schemas Pydantic abajo y `docs/api.md` para curls).
+- **Auth**: `X-Internal-Token` en lugar de identidad Kafka. El endpoint no está en API Gateway; se llama directo al Cloud Run del servicio.
+
+El consumer Kafka sigue intacto en `app/kafka/consumer.py` y reusa el mismo dispatcher; si en el futuro se prefiere volver al transporte por broker, sólo se cambia `KAFKA_CONSUMER_ENABLED` y los productores publican al topic correspondiente.
+
+Detalle completo del contrato HTTP, curls por `event_type`, opt-out y reglas operativas: `docs/api.md` § *POST /api/v1/notifications/events*.
 
 ---
 
