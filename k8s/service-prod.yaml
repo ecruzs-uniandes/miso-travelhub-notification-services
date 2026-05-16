@@ -32,8 +32,13 @@ spec:
           env:
             - name: ENV
               value: prod
+            # Kafka activo en PROD desde 2026-05-13. VM prod-travelhub-kafka
+            # en 10.20.3.3:9092. Topics: booking-events, payment-events,
+            # user-events, notification-dlq (creados via IAP tunnel 2026-05-16).
             - name: KAFKA_CONSUMER_ENABLED
-              value: "false"
+              value: "true"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "10.20.3.3:9092"
             - name: JWT_ISSUER
               value: https://auth.travelhub.app
             - name: JWT_AUDIENCE
