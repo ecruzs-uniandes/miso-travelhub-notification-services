@@ -411,6 +411,297 @@ curl -s -X POST \
 
 > **Por qué HTTP y no Kafka:** los workers de booking/payment/user del equipo se diseñaron como consumidores Kafka propios por dominio (ej. payment-service publica a `payment-events` y su worker procesa). Como notification-services no es el dueño de esos topics y los workers ya están desplegados, los workers nos llaman directamente vía HTTP en vez de notification consumir Kafka. El envelope es el mismo, así que si en el futuro queremos volver a consumir, solo cambia el transporte.
 
+#### Curl por cada `event_type` (copy-paste, listos para correr)
+
+> Variables comunes (definelas una vez en tu shell):
+> ```bash
+> export USER_ID="<uuid-del-usuario-destinatario>"
+> export NOTIF_URL="https://notification-services-ridyy4wz4q-uc.a.run.app/api/v1/notifications/events"   # DEV
+> # export NOTIF_URL="https://notification-services-qhweqfkejq-uc.a.run.app/api/v1/notifications/events" # PROD
+> export INTERNAL_TOKEN=$(gcloud secrets versions access latest \
+>   --secret=dev-travelhub-internal-notify-token \
+>   --project=gen-lang-client-0930444414)
+> # PROD: --secret=prod-travelhub-internal-notify-token --project=travelhub-prod-492116
+> ```
+>
+> `USER_ID` debe existir como `users.id` en user-services. La preferencia de notificación se crea automáticamente la primera vez que llega `user.welcome` (con el email del payload), o puede crearla el viajero vía `PUT /api/v1/notifications/preferences`. Si el user no tiene `email_address` y `email_enabled=true`, el envío se marca como `skipped` (HTTP sigue siendo 202).
+
+---
+
+##### 1. `user.welcome`
+
+Lo dispara el worker de **user-services** tras un registro exitoso. Auto-upserts la preferencia de notificación del user con el `email` del payload, así que sirve para bootstrappear a un usuario nuevo.
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `email` | string | ✅ | Email del usuario recién registrado. Va al `email_address` de la preferencia. |
+| `full_name` | string | ✅ | Nombre completo. Se usa como `{{ user.full_name }}` en la plantilla. |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_welcome_$(date +%s)\",
+    \"event_type\": \"user.welcome\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"email\": \"viajero@ejemplo.com\",
+      \"full_name\": \"María Pérez\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Bienvenido a TravelHub"*, saludo personalizado, link de la app. Plantillas: `user_welcome.email.html` / `.txt`.
+
+---
+
+##### 2. `user.password_reset`
+
+Lo dispara user-services cuando un viajero pide "olvidé mi contraseña".
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `email` | string | ✅ | Email destinatario. |
+| `full_name` | string | ✅ | Nombre completo. |
+| `reset_token` | string | ✅ | Token único que valida la solicitud (lo emite user-services, expira). |
+| `reset_url` | string | ✅ | URL completa que el usuario debe abrir (con `reset_token` como query/path). |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_pwdreset_$(date +%s)\",
+    \"event_type\": \"user.password_reset\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"email\": \"viajero@ejemplo.com\",
+      \"full_name\": \"María Pérez\",
+      \"reset_token\": \"abc123xyz\",
+      \"reset_url\": \"https://app.travelhub.app/reset-password?token=abc123xyz\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Recupera tu contraseña"*, botón "Restablecer contraseña" enlazando a `reset_url`. Plantillas: `user_password_reset.email.html` / `.txt`.
+
+---
+
+##### 3. `booking.confirmed`
+
+Lo dispara el worker de **booking-service** cuando una reserva queda confirmada (después de pago exitoso, o de aprobación manual del hotel según el flujo).
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `booking_id` | UUID | ✅ | ID de la reserva en booking-service. |
+| `hotel_name` | string | ✅ | Nombre comercial del hotel para mostrar al viajero. |
+| `check_in` | datetime ISO-8601 | ✅ | Fecha y hora de check-in (UTC, se renderiza en Bogotá UTC-5). |
+| `check_out` | datetime ISO-8601 | ✅ | Fecha y hora de check-out. |
+| `total` | number | ✅ | Total pagado por la reserva. |
+| `currency` | string | ✅ | Código ISO de moneda (`COP`, `USD`, etc.). |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_booking_confirmed_$(date +%s)\",
+    \"event_type\": \"booking.confirmed\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
+      \"hotel_name\": \"Hotel Bogotá Plaza\",
+      \"check_in\": \"2026-06-15T14:00:00Z\",
+      \"check_out\": \"2026-06-18T11:00:00Z\",
+      \"total\": 450000,
+      \"currency\": \"COP\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Tu reserva está confirmada"*, tabla con hotel, fechas, total, link a `app_url/bookings/{booking_id}`. Plantillas: `booking_confirmed.email.html` / `.txt`.
+
+---
+
+##### 4. `booking.cancelled`
+
+Lo dispara el worker de **booking-service** cuando una reserva se cancela (acción del viajero, política del hotel, o pago fallido tras grace period).
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `booking_id` | UUID | ✅ | ID de la reserva cancelada. |
+| `hotel_name` | string | ✅ | Nombre del hotel. |
+| `check_in` | datetime ISO-8601 | ✅ | Fecha que se canceló (informativa). |
+| `check_out` | datetime ISO-8601 | ✅ | Fecha que se canceló. |
+| `reason` | string \| null | opcional | Motivo legible (e.g. "Cancelada por el viajero"). |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_booking_cancelled_$(date +%s)\",
+    \"event_type\": \"booking.cancelled\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
+      \"hotel_name\": \"Hotel Bogotá Plaza\",
+      \"check_in\": \"2026-06-15T14:00:00Z\",
+      \"check_out\": \"2026-06-18T11:00:00Z\",
+      \"reason\": \"Cancelada por el viajero\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Tu reserva fue cancelada"*, con el motivo (si se envió `reason`) y referencia a `booking_id`. Plantillas: `booking_cancelled.email.html` / `.txt`.
+
+---
+
+##### 5. `booking.reminder`
+
+Recordatorio antes del check-in. Quien lo dispara depende del producto: típicamente un cron del booking-service que escanea reservas con `check_in - hoy ≤ N días`.
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `booking_id` | UUID | ✅ | ID de la reserva próxima. |
+| `hotel_name` | string | ✅ | Nombre del hotel. |
+| `check_in` | datetime ISO-8601 | ✅ | Fecha de check-in. |
+| `check_out` | datetime ISO-8601 | ✅ | Fecha de check-out. |
+| `days_until` | integer | ✅ | Días hasta el check-in (e.g. `3`). Se usa en el asunto. |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_booking_reminder_$(date +%s)\",
+    \"event_type\": \"booking.reminder\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
+      \"hotel_name\": \"Hotel Bogotá Plaza\",
+      \"check_in\": \"2026-06-15T14:00:00Z\",
+      \"check_out\": \"2026-06-18T11:00:00Z\",
+      \"days_until\": 3
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Tu viaje a Hotel Bogotá Plaza es en 3 días"*, instrucciones de check-in. Plantillas: `booking_reminder.email.html` / `.txt`.
+
+---
+
+##### 6. `payment.completed`
+
+Lo dispara el worker de **payment-service** cuando un cobro queda exitoso en el proveedor (Stripe, Mercado Pago, PayPal).
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `payment_id` | UUID | ✅ | ID del cobro en payment-service. |
+| `booking_id` | UUID | ✅ | ID de la reserva asociada. |
+| `amount` | number | ✅ | Monto cobrado. |
+| `currency` | string | ✅ | Código ISO de moneda. |
+| `provider` | string | ✅ | Uno de: `stripe`, `mercadopago`, `paypal`. |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_payment_completed_$(date +%s)\",
+    \"event_type\": \"payment.completed\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"payment_id\": \"770e8400-e29b-41d4-a716-446655440002\",
+      \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
+      \"amount\": 450000,
+      \"currency\": \"COP\",
+      \"provider\": \"stripe\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Pago confirmado"*, monto, moneda y proveedor. Plantillas: `payment_completed.email.html` / `.txt`.
+
+---
+
+##### 7. `payment.failed`
+
+Lo dispara el worker de **payment-service** cuando un cobro falla (rechazo del banco, fondos insuficientes, timeout del proveedor).
+
+**Payload mínimo:**
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `payment_id` | UUID | ✅ | ID del intento fallido. |
+| `booking_id` | UUID | ✅ | ID de la reserva afectada. |
+| `amount` | number | ✅ | Monto que se intentó cobrar. |
+| `currency` | string | ✅ | Código ISO. |
+| `reason` | string \| null | opcional | Motivo legible para el viajero (e.g. "Tarjeta declinada por el banco emisor"). NO incluir códigos crudos del proveedor. |
+
+```bash
+curl -sS -X POST "$NOTIF_URL" \
+  -H "X-Internal-Token: $INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"event_id\": \"evt_payment_failed_$(date +%s)\",
+    \"event_type\": \"payment.failed\",
+    \"occurred_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+    \"user_id\": \"$USER_ID\",
+    \"payload\": {
+      \"payment_id\": \"770e8400-e29b-41d4-a716-446655440003\",
+      \"booking_id\": \"660e8400-e29b-41d4-a716-446655440001\",
+      \"amount\": 450000,
+      \"currency\": \"COP\",
+      \"reason\": \"Tarjeta declinada por el banco emisor\"
+    }
+  }"
+```
+
+**Email que llega:** asunto *"Pago fallido"*, motivo (si se envió `reason`), invitación a reintentar. Plantillas: `payment_failed.email.html` / `.txt`.
+
+---
+
+#### Reglas operativas que aplican a TODOS los `event_type`
+
+| Regla | Detalle |
+|---|---|
+| **Idempotencia** | `UNIQUE(event_id, channel)` en `notification_log`. Reintentar con el **mismo** `event_id` es seguro: la segunda vez se ignora con status `skipped`. Si quieres forzar un reenvío, usa un `event_id` nuevo. |
+| **Sin preferencia** | Si el `user_id` no tiene `notification_preference`, `user.welcome` la crea automáticamente con el email del payload. Para los otros eventos, si falta preferencia o `email_enabled=false`, el envío se marca `skipped` (la fila en `notification` in-app sí se crea). |
+| **Errores 5xx** | Si el render de plantilla o SendGrid fallan, la transacción se rollback y se devuelve `500`. El caller debe reintentar con el mismo `event_id`. |
+| **Logs en Cloud Logging** | Cada envío deja al menos 2 líneas: `events_ingest_received event_type=X event_id=Y` y `email_sent` (o `notification_send_failed`). Filtra por `event_id` para trazar punto a punto. |
+| **PII enmascarada** | Los logs nunca incluyen `email_address`, `phone_number` ni `fcm_token` en claro — solo los últimos 4 caracteres del email o un hash. |
+
+#### Validación E2E confirmada (smoke 2026-05-16)
+
+| event_type | HTTP | SendGrid | Email entregado |
+|---|---|---|---|
+| `user.welcome` | 202 | `email_sent` | ✅ |
+| `booking.confirmed` | 202 | `email_sent` | ✅ |
+| `payment.completed` | 202 | `email_sent` | ✅ |
+| `payment.failed` | 202 | `email_sent` | ✅ |
+
+Dirección de prueba: `edw.cruz.silva.19@gmail.com` (user_id `ba2d8b89-aa6d-48c7-b048-54eab2f25d7a`) contra `notification-services-00023-2m2` en DEV.
+
 ---
 
 ## Health endpoints
