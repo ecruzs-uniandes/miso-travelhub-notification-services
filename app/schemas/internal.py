@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class InternalNotificationRequest(BaseModel):
@@ -32,3 +32,29 @@ class WelcomeRegistrationRequest(BaseModel):
 class WelcomeRegistrationResponse(BaseModel):
     notification_id: UUID
     channels_sent: list[str]
+
+
+class EventIngestionRequest(BaseModel):
+    """Envelope simplificado para ingesta HTTP de eventos.
+
+    Los workers de cada dominio (booking, payment, user) llaman aquí con sólo
+    `event_type`, `user_id` y `payload`. El servicio genera internamente
+    `event_id` (para la fila en `notification_log`) y `occurred_at` (UTC).
+    La deduplicación / idempotencia es responsabilidad del worker — si llaman
+    dos veces, se envían dos correos.
+    """
+
+    event_type: str = Field(
+        ..., description="Tipo de evento. Ej: booking.confirmed, payment.completed, user.welcome."
+    )
+    user_id: UUID
+    payload: dict = Field(default_factory=dict)
+
+
+class EventIngestionResponse(BaseModel):
+    accepted: bool
+    event_id: str = Field(
+        ..., description="ID generado por el servicio. Útil para trazar en logs."
+    )
+    event_type: str
+    user_id: UUID
