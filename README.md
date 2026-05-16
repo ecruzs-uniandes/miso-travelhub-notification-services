@@ -46,7 +46,9 @@ API Gateway ──► /api/v1/notifications/*    (público, JWT — preferences,
         └── WhatsAppStubSender (no implementado)
 ```
 
-> **Cambio arquitectónico 2026-05-16:** este servicio ya NO consume `booking-events` / `payment-events` / `user-events` de Kafka. Los workers de cada dominio (booking, payment, user) llaman vía HTTP al nuevo endpoint `POST /api/v1/notifications/events` con el **mismo envelope** que iba a publicarse al broker. Internamente se reutiliza el mismo `process_event()` que usaba el consumer Kafka, así que renderizado, idempotencia y plantillas no cambian. Detalle: [docs/api.md](docs/api.md) § *POST /api/v1/notifications/events*.
+> **Cambio arquitectónico 2026-05-16 (A):** este servicio ya NO consume `booking-events` / `payment-events` / `user-events` de Kafka. Los workers de cada dominio (booking, payment, user) llaman vía HTTP al nuevo endpoint `POST /api/v1/notifications/events` con un envelope simplificado (`event_type`, `user_id`, `payload`). Internamente se reutiliza el mismo `process_event()` que usaba el consumer Kafka, así que renderizado y plantillas no cambian. Detalle: [docs/api.md](docs/api.md) § *POST /api/v1/notifications/events*.
+>
+> **Cambio arquitectónico 2026-05-16 (B):** **opt-out por defecto + fallback a `users.email`**. Antes, un viajero sin fila en `notification_preference` recibía `channel_skipped` y nada llegaba — obligaba a disparar `user.welcome` antes de cualquier `booking/payment`. Ahora `NotificationService` resuelve el destinatario así: si `pref.email_address` está seteado se usa; si no, query `SELECT email, nombre FROM users WHERE id=:uid AND activo=true` (misma BD `travelhub` que user-services). Los defaults del modelo (`email_enabled=true`, `push_enabled=true`) ya hacían el resto. El viajero apaga canales con `PUT /api/v1/notifications/preferences` — eso sí se respeta. Trade-off: notification queda acoplado al schema de `users.email` / `users.nombre` / `users.activo`.
 
 ### Patrones aplicados
 
@@ -249,7 +251,10 @@ export NOTIF_URL="https://notification-services-ridyy4wz4q-uc.a.run.app/api/v1/n
 # el primer user.welcome la crea automáticamente con el email del payload.
 export USER_ID="ba2d8b89-aa6d-48c7-b048-54eab2f25d7a"
 
-# 2.1 — Bootstrap del usuario (crea notification_preference si no existe)
+# 2.1 — Opcional: bootstrap del welcome (no es estrictamente necesario desde el cambio
+#       opt-out — si el user_id existe en `users` el booking ya le llega).
+#       Sirve si quieres además guardar el `email_address` en notification_preference o
+#       enviar el correo de bienvenida.
 curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \
@@ -259,7 +264,7 @@ curl -sS -X POST "$NOTIF_URL" \
     \"payload\": { \"email\": \"viajero@ejemplo.com\", \"full_name\": \"María Pérez\" }
   }"
 
-# 2.2 — Reserva confirmada
+# 2.2 — Reserva confirmada (funciona aunque NO hayas corrido 2.1 — fallback a users.email)
 curl -sS -X POST "$NOTIF_URL" \
   -H "X-Internal-Token: $INTERNAL_TOKEN" \
   -H "Content-Type: application/json" \

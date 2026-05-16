@@ -329,7 +329,7 @@ CREATE TABLE notification_preference (
     push_enabled       BOOLEAN NOT NULL DEFAULT TRUE,
     sms_enabled        BOOLEAN NOT NULL DEFAULT FALSE,
     whatsapp_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-    email_address      VARCHAR(255),       -- redundante con user-services pero evita join entre dominios
+    email_address      VARCHAR(255),       -- copia local; NULL → fallback automático a users.email (opt-out 2026-05-16)
     phone_number       VARCHAR(20),
     fcm_token          VARCHAR(500),       -- token de push del dispositivo
     locale             VARCHAR(10) NOT NULL DEFAULT 'es',
@@ -384,7 +384,7 @@ CREATE INDEX idx_notification_log_event ON notification_log(event_id);
 
 ### Notas sobre el modelo
 
-- `notification_preference.email_address`, `phone_number`, `fcm_token` se replican aquí (no se hace join contra `user-services`). Se actualizan vía evento `user.profile_updated`.
+- `notification_preference.email_address`, `phone_number`, `fcm_token` son la **fuente preferida**. Si `email_address` está NULL, `NotificationService._resolve_user_info()` hace `SELECT email, nombre FROM users WHERE id=:uid AND activo=true` contra la misma BD `travelhub` (notification y user-services comparten Cloud SQL) — opt-out introducido 2026-05-16. El viajero puede pisar el valor con `PUT /api/v1/notifications/preferences` o apagar canales con `email_enabled=false`.
 - `notification_log.event_id + channel` UNIQUE garantiza idempotencia: si el mismo evento llega dos veces a Kafka, se intenta INSERT y se hace `ON CONFLICT DO NOTHING` → skip.
 - `notification.metadata JSONB` guarda contexto del evento original (booking_id, payment_id, hotel_id, etc.) para que el frontend pueda hacer deep-linking.
 
@@ -645,7 +645,8 @@ TOPICS = ["booking-events", "payment-events", "user-events"]
 2. Deserializar a `EventEnvelope`. Si falla → DLQ (`notification-dlq`) + log error + commit.
 3. Buscar handler en dispatcher por `event_type`. Si no existe → log warning + commit (no DLQ).
 4. Ejecutar handler:
-   - Cargar preferencias del usuario.
+   - Cargar preferencias del usuario (`get_or_create`). Si la fila no existe se crea con defaults (`email_enabled=true`, `push_enabled=true`).
+   - Resolver email + nombre efectivos: si `pref.email_address` está NULL, fallback a `users.email`/`users.nombre` (opt-out 2026-05-16). Si tampoco existe el user (soft-delete o id desconocido) → `channel_skipped` silencioso.
    - Renderizar plantilla(s) según canales habilitados.
    - Insertar fila en `notification` + `notification_log` (con `ON CONFLICT DO NOTHING` por `event_id + channel`).
    - Si la fila ya existía (conflict) → log + commit (idempotente, ya se procesó).
@@ -1142,7 +1143,7 @@ Estos puntos requieren coordinación con teammates antes de cerrar el sprint:
 
 1. **`booking-services`** (Andrés/Pablo/Omar): debe publicar a `booking-events` con el envelope estándar. Eventos: `booking.confirmed`, `booking.cancelled`, `booking.reminder`.
 2. **`payments-services`** (Andrés/Pablo/Omar): debe publicar a `payment-events`. Eventos: `payment.completed`, `payment.failed`.
-3. **`user-services`** (Edwin): hoy NO publica a Kafka. Hay que agregarle producer para `user.welcome`, `user.password_reset`, `user.email_verification`. **Esto está fuera del scope de este servicio pero es prerequisito para que las notificaciones de usuario funcionen.**
+3. **`user-services`** (Edwin): integra vía **HTTP** (no Kafka). Llama `POST /api/v1/notifications/internal/welcome` tras un register exitoso (commit `3b34978`). Para `password_reset` / `email_verification` puede llamar `POST /api/v1/notifications/events` con el envelope estándar. Desde 2026-05-16 con opt-out + fallback a `users.email`, las notificaciones de booking/payment también llegan aunque user-services NO haya gatillado el welcome — la dependencia ya no es bloqueante.
 4. **VM Kafka (`travelhub-kafka`)**: agregar `booking-events`, `payment-events`, `user-events`, `notification-dlq` al `kafka-init` container o crearlos manualmente vía IAP tunnel.
 5. **API Gateway**: agregar las rutas `/api/v1/notifications/*` al `openapi-spec.yaml` y redesplegar.
 6. **`pms-sync-worker`**: ya espera el endpoint `POST /api/v1/notifications/internal`. Asegurar que la URL configurada en su deploy apunte a `notification-services`.
