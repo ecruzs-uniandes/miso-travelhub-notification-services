@@ -69,7 +69,7 @@ async def send_notification(
 ):
     result = await db.execute(
         text('SELECT "viajeroId" FROM reserva WHERE id = :booking_id'),
-        {"booking_id": body.booking_id},
+        {"booking_id": str(body.booking_id)},
     )
     row = result.first()
     viajero_id = row[0] if row else None
