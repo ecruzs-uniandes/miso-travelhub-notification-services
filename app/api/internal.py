@@ -15,6 +15,7 @@ from app.schemas.internal import (
     WelcomeRegistrationRequest,
     WelcomeRegistrationResponse,
 )
+from app.kafka.dispatcher import get_handler
 from app.schemas.events import EventEnvelope
 from app.services.notification_service import NotificationService
 
@@ -133,7 +134,14 @@ async def ingest_event(
 
     service = NotificationService(db)
     try:
-        await service.process_event(envelope)
+        # Buscar handler especifico en el dispatcher (mismo flujo que el consumer Kafka).
+        # Asi user.welcome auto-pobla la preference via ensure_welcome_preference antes
+        # de procesar. Fallback a process_event() directo si no hay handler registrado.
+        handler = get_handler(envelope.event_type)
+        if handler is not None:
+            await handler(envelope, service)
+        else:
+            await service.process_event(envelope)
         await db.commit()
     except Exception as exc:
         logger.error(
